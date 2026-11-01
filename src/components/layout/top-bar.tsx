@@ -20,10 +20,10 @@ export function TopBar({ user, unread }: { user: CurrentUser; unread: number }) 
         </Link>
         <div className="flex items-center gap-3 border-l border-slate-200 pl-4">
           <div className="flex size-8 items-center justify-center rounded-full bg-navy-100 text-xs font-semibold text-navy-800">{initials}</div>
-          <div className="hidden leading-tight sm:block">
+          <Link href="/profile" className="hidden leading-tight hover:opacity-80 sm:block" title="My profile">
             <p className="text-sm font-medium text-slate-900">{user.fullName}</p>
             <p className="text-xs text-slate-500">{user.jobTitle ?? user.email}</p>
-          </div>
+          </Link>
           <form action="/auth/signout" method="post">
             <button className="rounded-md p-2 text-slate-500 hover:bg-slate-100" title="Sign out" aria-label="Sign out">
               <LogOut className="size-4" />

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   ArrowLeftRight, BadgeCheck, CalendarClock, BarChart3, Building2, ClipboardCheck, ClipboardList, CreditCard, FileText, FolderTree,
-  History, LayoutDashboard, Lock, MapPin, Package, PackageMinus, PackagePlus, Receipt, Route, Settings, ShoppingCart,
+  History, LayoutDashboard, Lock, MapPin, Package, PackageMinus, PackagePlus, Receipt, Route, Settings, ShieldCheck, ScrollText, ShoppingCart,
   Target, Truck, Users, Wallet, Warehouse, type LucideIcon,
 } from "lucide-react";
 import type { NavGroup } from "@/lib/navigation";
@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 
 const ICONS: Record<string, LucideIcon> = {
   ArrowLeftRight, BadgeCheck, CalendarClock, BarChart3, Building2, ClipboardCheck, ClipboardList, CreditCard, FileText, FolderTree,
-  History, LayoutDashboard, Lock, MapPin, Package, PackageMinus, PackagePlus, Receipt, Route, Settings, ShoppingCart,
+  History, LayoutDashboard, Lock, MapPin, Package, PackageMinus, PackagePlus, Receipt, Route, Settings, ShieldCheck, ScrollText, ShoppingCart,
   Target, Truck, Users, Wallet, Warehouse,
 };
 

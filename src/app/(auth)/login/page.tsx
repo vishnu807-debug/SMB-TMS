@@ -1,30 +1,23 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { LoginForm } from "./login-form";
+import { AuthShell } from "../auth-shell";
 
 export const metadata: Metadata = { title: "Sign in" };
 
-export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string; error?: string }> }) {
-  const { next, error } = await searchParams;
+const MESSAGES: Record<string, string> = {
+  inactive: "Your account is inactive. Please contact the administrator.",
+  session: "You have been signed out. Please sign in again.",
+  link: "That link is invalid or has expired. Request a new one.",
+};
+
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string; error?: string; reset?: string }> }) {
+  const { next, error, reset } = await searchParams;
   return (
-    <main className="flex min-h-screen">
-      <div className="hidden w-[44%] flex-col justify-between bg-navy-900 p-12 text-white lg:flex">
-        <div className="flex items-center gap-3">
-          <div className="flex size-10 items-center justify-center rounded-md bg-white text-lg font-bold text-navy-900">S</div>
-          <span className="text-lg font-semibold tracking-wide">SMP Trading</span>
-        </div>
-        <div>
-          <h1 className="text-3xl font-semibold leading-tight">Trading Management System</h1>
-          <p className="mt-3 max-w-sm text-navy-200">Sales, procurement, inventory, logistics and finance in one connected system.</p>
-        </div>
-        <p className="text-xs text-navy-300">Authorised users only. Activity is logged.</p>
-      </div>
-      <div className="flex flex-1 items-center justify-center bg-white p-6">
-        <div className="w-full max-w-sm">
-          <h2 className="text-2xl font-semibold text-slate-900">Sign in</h2>
-          <p className="mb-6 mt-1 text-sm text-slate-500">Use your SMP work email.</p>
-          <LoginForm next={next} initialError={error === "inactive" ? "Your account is inactive. Please contact the administrator." : undefined} />
-        </div>
-      </div>
-    </main>
+    <AuthShell title="Sign in" subtitle="Use your SMP work email.">
+      {reset === "done" && <p className="mb-4 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">Your password has been changed. Sign in with the new password.</p>}
+      <LoginForm next={next} initialError={error ? MESSAGES[error] : undefined} />
+      <p className="mt-4 text-center text-sm"><Link href="/forgot-password" className="text-navy-700 hover:underline">Forgot your password?</Link></p>
+    </AuthShell>
   );
 }
