@@ -1,0 +1,18 @@
+# Supabase CLI project settings (used by `supabase link` / `supabase db push` and local development).
+project_id = "smp-tms"
+
+[db]
+major_version = 17
+
+[auth]
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["http://localhost:3000/auth/confirm"]
+# Staff are invited by an administrator; nobody can sign themselves up.
+enable_signup = false
+jwt_expiry = 3600
+minimum_password_length = 10
+
+[auth.email]
+enable_signup = false
+double_confirm_changes = true
+enable_confirmations = true

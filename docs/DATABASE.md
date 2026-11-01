@@ -14,6 +14,7 @@ Migrations run in file order. Gaps in the numbering are reserved for modules sti
 | `0012_security` | Row Level Security policies and grants |
 | `0013_dashboards` | Sales dashboard function |
 | `0014_user_management` | Per-user permission grants/denies, session revocation, auth events, user admin functions |
+| `0017_finance` | Bank accounts, invoices & credit notes, receipts, supplier bills (three-way match), supplier payments, expenses, e-invoicing queue, VAT summary |
 | `0016_logistics` | Shipments, delivery notes, dispatch from reservations, proof of delivery, order fulfilment roll-up |
 | `0015_procurement` | Supplier contacts, supplier quotations, purchase orders with approval, receiving against POs, incoming stock from POs |
 
@@ -103,3 +104,27 @@ together, increases the order line's `qty_delivered`, and rolls the order up to 
 ### Key functions
 `save_delivery_note`, `dispatch_delivery_note`, `confirm_delivery`, `cancel_delivery_note`, `save_shipment`,
 `dispatch_shipment`, `cancel_shipment`.
+
+## Finance
+
+| Table / view | Purpose |
+| --- | --- |
+| `bank_accounts` | Bank, cash and card accounts payments go in and out of. |
+| `customer_invoices` / `customer_invoice_lines` | Tax invoices and tax credit notes (`kind`). Drafts have no number; posting assigns the next gap-free number (INV / CN), sets the due date from the payment terms and locks the document. Lines delivered on a delivery note keep the sales order price; extra charge lines can be added. Snapshots of customer name, TRN and address are kept as printed. `balance = total − paid − credited`. |
+| `einvoice_transmissions` | One row per attempt to send an invoice to the e-invoicing service provider (ASP), with status, reference, response and back-off. |
+| `customer_payments` / `customer_payment_allocations` | Receipts (transfer, cheque, PDC, cash, card) and how they are applied to invoices; partial and advance payments supported. Voiding (e.g. bounced cheque) reverses the allocations. |
+| `supplier_bills` / `supplier_bill_lines` | Supplier tax invoices. Lines on a PO cannot exceed goods received and not yet billed (three-way match, enforced again by `qty_billed ≤ qty_received` on the PO line). Price variance against the PO above 2 %, or a bill with no PO, needs approval. Duplicate supplier invoice numbers are blocked. |
+| `supplier_payments` / `supplier_payment_allocations` | Payments to suppliers against approved bills. |
+| `expense_categories` / `expenses` | Staff expense claims with VAT (vendor TRN required to reclaim), receipt upload, approval by someone else, and payment. |
+| `v_receivables` / `v_payables` | Open items with days overdue and ageing bucket (current, 1–30, 31–60, 61–90, 90+). |
+| `v_uninvoiced_deliveries` | Delivered quantities not yet invoiced, per order and delivery note. |
+
+Rules: invoices are raised from **delivered** quantities only and can never exceed them (drafts included). An invoice can
+be voided only while unpaid, uncredited and not yet reported through e-invoicing; otherwise a credit note is issued.
+The customer credit position now counts unpaid invoices plus the uninvoiced value of open orders.
+
+### Key functions
+`create_invoice_from_deliveries`, `save_invoice_draft`, `post_invoice`, `void_invoice`, `create_credit_note`, `retry_einvoice`,
+`record_customer_payment`, `allocate_customer_payment`, `void_customer_payment`, `save_supplier_bill`, `submit_supplier_bill`,
+`void_supplier_bill`, `record_supplier_payment`, `void_supplier_payment`, `save_expense`, `submit_expense`, `mark_expense_paid`,
+`vat_summary`. Server-only (service role): `einvoice_claim_batch`, `einvoice_record_result`, `einvoice_document`.

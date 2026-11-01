@@ -43,21 +43,22 @@ export const NAVIGATION: NavGroup[] = [
   {
     label: "Finance",
     items: [
-      { label: "Invoices", href: "/invoices", icon: "Receipt", permission: ["invoice.view"], ready: false },
-      { label: "Payments", href: "/payments", icon: "Wallet", permission: ["payment.view"], ready: false },
-      { label: "Expenses", href: "/expenses", icon: "CreditCard", permission: ["expense.submit"], ready: false },
+      { label: "Invoices", href: "/invoices", icon: "Receipt", permission: ["invoice.view"], ready: true },
+      { label: "Customer Receipts", href: "/payments", icon: "Wallet", permission: ["payment.view"], ready: true },
+      { label: "Payables", href: "/payables", icon: "Landmark", permission: ["payable.view"], ready: true },
+      { label: "Expenses", href: "/expenses", icon: "CreditCard", permission: ["expense.submit", "expense.view_all", "expense.approve"], ready: true },
     ],
   },
   {
     label: "Administration",
     items: [
-      { label: "Approvals", href: "/approvals", icon: "BadgeCheck", permission: ["approval.view", "quotation.approve", "sales_order.approve", "inventory.approve_adjustment", "purchase_order.approve"], ready: true },
+      { label: "Approvals", href: "/approvals", icon: "BadgeCheck", permission: ["approval.view", "quotation.approve", "sales_order.approve", "inventory.approve_adjustment", "purchase_order.approve", "payable.approve", "expense.approve"], ready: true },
       { label: "Reports", href: "/reports", icon: "BarChart3", permission: ["report.sales", "report.inventory"], ready: false },
       { label: "Warehouses", href: "/settings/warehouses", icon: "MapPin", permission: ["warehouse.manage", "inventory.view"], ready: true },
       { label: "User Management", href: "/users", icon: "Users", permission: ["user.view"], ready: true },
       { label: "Roles & Permissions", href: "/users/roles", icon: "ShieldCheck", permission: ["role.manage"], ready: true },
       { label: "Audit Log", href: "/audit", icon: "ScrollText", permission: ["audit.view"], ready: true },
-      { label: "System Settings", href: "/settings", icon: "Settings", permission: ["settings.manage"], ready: false },
+      { label: "System Settings", href: "/settings", icon: "Settings", permission: ["settings.manage", "payable.approve"], ready: true },
     ],
   },
 ];

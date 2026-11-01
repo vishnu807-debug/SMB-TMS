@@ -1,129 +1,237 @@
 # SMP Trading Management System
 
-Next.js 15 + Supabase (PostgreSQL, Auth, Storage) CRM and mini-ERP for SMP General Trading.
+CRM and mini-ERP for SMP General Trading: sales, procurement, inventory, logistics and finance in one system.
+Built with **Next.js 15**, **React**, **TypeScript**, **Tailwind** and **Supabase** (PostgreSQL, Auth, Storage).
 
-## What is built so far
+| Module | What it does |
+| --- | --- |
+| **Sales & CRM** | Customers (TRN check, credit limit, contacts, addresses), enquiries, follow-ups, quotations with revisions, margin control, approvals and PDF, sales orders with stock / procurement / mixed fulfilment, sales dashboard |
+| **Products & inventory** | Product master, category tree, multi-warehouse stock, goods received, issues, transfers, approved adjustments, reservations, movement ledger, valuation |
+| **Procurement** | Suppliers, requisitions (from orders, minimum stock or by hand), supplier quotation comparison, purchase orders with approval and PDF, receiving against POs |
+| **Logistics** | Delivery notes from reserved stock (partial deliveries), shipments / vehicle trips, dispatch, proof of delivery, delivery note PDF |
+| **Finance** | Tax invoices and credit notes from delivered goods, customer receipts and allocation, receivables ageing, supplier bills with three-way match, supplier payments, expense claims, bank accounts, VAT summary, **UAE e-invoicing (PINT AE) connector** |
+| **Administration** | 12 roles, per-user extra/denied permissions, user management, session revocation, approvals inbox, audit log, system settings |
 
-| Area | Database | Screens | Status |
-| --- | --- | --- | --- |
-| Foundation: roles, permissions, numbering, audit log, notifications | ✅ | Sign-in, sign-out, layout, notifications | Done |
-| **Product master** (SKU, category tree, brand, specs, UoM, supplier, prices, VAT, min. stock, image, attachments, active flag) | ✅ tested | List, create/edit, detail, categories | **Done** |
-| **Inventory** (multi-warehouse, GRN, issues, transfers, approved adjustments, reservations, movement history, valuation) | ✅ tested | Overview, documents, reservations, movements, warehouses | **Done** |
-| **Sales & CRM** (customers, enquiries, follow-ups, quotations with PDF, sales orders, approvals, dashboard) | ✅ tested | All screens | **Done** |
-| **Authentication & user management** (12 roles, per-user grants/denies, sessions, deactivation, audit) | ✅ tested | Users, roles matrix, profile, password reset, audit log | **Done** |
-| **Procurement** (suppliers, requisitions, supplier quote comparison, purchase orders with approval & PDF, receiving against POs) | ✅ tested | Procurement, purchase orders, suppliers | **Done** |
-| **Logistics** (delivery notes from reserved stock, partial deliveries, shipments, dispatch, proof of delivery, PDF) | ✅ tested | Logistics, delivery notes, shipments | **Done** |
-| Finance (invoices, payments, supplier bills, expenses, e-invoicing) | — | — | Next |
+Every rule that protects money or stock lives **in the database** (Row Level Security + `security definer` functions),
+so it holds no matter how the data is reached. The app checks permissions too, but the database is the real gate.
+See [`docs/DATABASE.md`](docs/DATABASE.md) for every table and function.
 
-Sidebar items for unbuilt modules are shown as "Soon" and are not clickable.
+---
 
-## Setup
+## Hosting it: GitHub → Supabase → Vercel
 
-1. **Create a Supabase project** (region closest to the UAE).
-2. **Apply the database migrations** with the Supabase CLI:
-   ```bash
-   npx supabase link --project-ref <your-ref>
-   npx supabase db push          # applies supabase/migrations/* in order
-   ```
-3. **Environment variables** — copy `.env.example` to `.env.local` and fill in the project URL and the *anon* key.
-   The service-role key is **not** needed for this module and must never be given a `NEXT_PUBLIC_` prefix.
-4. **Create the first administrator.** In Supabase → Authentication → Users, invite/create the user, then in the SQL editor:
+You need three free accounts: **GitHub** (code — already set up at `vishnu807-debug/SMB-TMS`), **Supabase**
+(database, logins, file storage) and **Vercel** (runs the website). Allow about 30 minutes.
+
+### Step 1 — Create the Supabase project
+
+1. Go to <https://supabase.com/dashboard> → **New project**.
+2. Name: `smp-tms`. Set a strong **database password** and keep it in your password manager.
+3. Region: **Frankfurt (eu-central-1)** — the closest to the UAE that Vercel also has.
+4. Click **Create new project** and wait about two minutes.
+5. Open **Project Settings → API Keys** and copy:
+   * the **Project URL** (also on **Project Settings → Data API**),
+   * the **anon / publishable** key — public, used by the browser,
+   * the **service_role / secret** key — **secret**; never share it, never put it in a `NEXT_PUBLIC_` variable.
+
+   (If you see both the new *publishable/secret* keys and *legacy* *anon/service_role* keys, either pair works.)
+
+### Step 2 — Create the database (run the migrations)
+
+**Option A — Supabase CLI (recommended).** On your computer, with Node.js 20 installed:
+
+```bash
+git clone https://github.com/vishnu807-debug/SMB-TMS.git
+cd SMB-TMS
+npm install
+npx supabase login                                   # opens the browser once
+npx supabase link --project-ref <your-project-ref>   # the ref is the xxxx in https://xxxx.supabase.co
+npx supabase db push                                 # applies supabase/migrations/* in order
+```
+
+**Option B — no installation.** In Supabase open **SQL Editor → New query**, then paste and **Run** each file in
+`supabase/migrations/` **one at a time, in filename order** (`…0001_foundation.sql` first, `…0017_finance.sql` last).
+Every file must finish with "Success" before you run the next one.
+
+Afterwards **Table Editor** should list tables such as `customers`, `sales_orders`, `customer_invoices`, and
+**Storage** should show the private buckets `product-media`, `delivery-pod` and `finance-docs`.
+
+### Step 3 — Configure sign-in (Supabase → Authentication)
+
+1. **Sign In / Providers → Email:** turn **off** "Allow new users to sign up" (staff are invited by an administrator).
+   Keep "Confirm email" on. Set the minimum password length to **10**.
+2. **URL Configuration:** leave it for now; you fill it in at Step 5 once you know the website address.
+3. **Emails → Templates.** Replace the link in two templates so the links open the app correctly:
+   * **Invite user** — use this as the button link:
+     `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite&next=/reset-password`
+   * **Reset password** — use:
+     `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&next=/reset-password`
+4. **Emails → SMTP Settings:** add your company mail server (Microsoft 365, Google Workspace, Zoho, SES…).
+   Supabase's built-in mailer only sends a few emails per hour and is meant for testing.
+5. *(Recommended)* **Project Settings → JWT / Sessions:** access-token expiry **3600** seconds or less.
+
+### Step 4 — Deploy on Vercel
+
+1. Go to <https://vercel.com/new> and sign in **with GitHub**.
+2. Under **Import Git Repository**, choose **vishnu807-debug/SMB-TMS** → **Import**. (If it isn't listed, click
+   **Adjust GitHub App Permissions** and give Vercel access to that repository.)
+3. Framework preset: **Next.js** (detected automatically). Leave build settings as they are.
+4. Open **Environment Variables** and add:
+
+   | Name | Value |
+   | --- | --- |
+   | `NEXT_PUBLIC_SUPABASE_URL` | Project URL from Step 1 |
+   | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | anon / publishable key |
+   | `SUPABASE_SERVICE_ROLE_KEY` | service_role / secret key (**server only**) |
+   | `NEXT_PUBLIC_SITE_URL` | `https://smb-tms.vercel.app` for now (fixed in Step 5) |
+   | `CRON_SECRET` | a long random string, e.g. the output of `openssl rand -hex 32` |
+   | `EINVOICE_ASP_URL`, `EINVOICE_ASP_API_KEY`, `EINVOICE_ASP_NAME` | leave empty until you sign up with an e-invoicing provider |
+
+5. Click **Deploy**. When it finishes, note the address Vercel gives you (e.g. `https://smb-tms-xxxx.vercel.app`).
+
+`vercel.json` already pins the server region to Frankfurt (next to the database) and schedules two daily jobs:
+low-stock alerts and expiring quotations at 08:00 Dubai time, and an e-invoice retry run at 08:30.
+
+### Step 5 — Connect the two
+
+1. **Vercel → Project → Settings → Environment Variables:** set `NEXT_PUBLIC_SITE_URL` to your real address
+   (or your custom domain, see below) → **Save** → **Deployments → ⋯ → Redeploy**.
+2. **Supabase → Authentication → URL Configuration:**
+   * **Site URL:** your address, e.g. `https://smb-tms-xxxx.vercel.app`
+   * **Redirect URLs → Add URL:** `https://smb-tms-xxxx.vercel.app/auth/confirm`
+
+### Step 6 — Create the first administrator
+
+1. **Supabase → Authentication → Users → Add user → Create new user.** Enter your work email and a strong password, and
+   tick **Auto Confirm User**.
+2. **SQL Editor → New query**, change the email and **Run**:
    ```sql
    insert into public.user_roles (user_id, role_id)
    select p.id, r.id from public.profiles p, public.roles r
    where p.email = 'you@smp.ae' and r.code = 'super_admin';
    ```
-   Assign other staff the same way (role codes are listed below) until the User Management screen is delivered.
-5. **Scheduled jobs** (Supabase → Database → Cron, or `pg_cron`):
-   ```sql
-   select cron.schedule('low-stock-alerts', '0 5 * * *', 'select public.notify_low_stock()');      -- 09:00 Dubai
-   select cron.schedule('expire-quotations', '5 20 * * *', 'select public.expire_quotations()');   -- 00:05 Dubai
-   ```
-6. **Run the app**
-   ```bash
-   npm install
-   npm run dev
-   ```
+3. Open the website and sign in. From now on, add staff in **User Management → Add user**; they receive an invitation email
+   and choose their own password.
 
-### Recommended Supabase Auth settings
-Disable public sign-ups (staff are invited), set minimum password length to 10+ with leaked-password protection, and set the JWT expiry to 1 hour or less.
+### Step 7 — Before the first real transaction
 
-## Sales & CRM at a glance
+In the app, as the administrator:
 
-* **Customers** — automatic code (CUS-00001), company details, TRN with 15-digit check, VAT treatment, currency,
-  payment and delivery terms, credit limit (Accounts only), assigned sales rep, multiple contacts and billing/delivery
-  addresses, duplicate warnings, and a 360° page (credit position, quotations, orders, enquiries, activities).
-* **Enquiries** — numbered (ENQ-2026-00001), source, requirement text and lines, value, probability, expected close,
-  owner, stages new → contacted → qualified → quoted → won/lost (lost needs a reason), conversion to a customer,
-  and a "Create quotation" button that copies the requirement lines.
-* **Follow-ups** — calls, meetings, site visits and follow-ups on any enquiry, customer, quotation or order;
-  overdue and due-today highlighting; a personal list (and team view for managers).
-* **Quotations** — automatic number and revisions (QT-2026-00012-R1), all commercial fields, live totals and VAT,
-  stock availability per line, suggested fulfilment, internal cost / gross profit / margin (only for roles with
-  `quotation.view_cost`; costs entered by others are ignored), approval when discount > 10 %, margin < 15 % or
-  total > AED 250,000 (editable rules), and a downloadable PDF (watermarked DRAFT until approved).
-* **Sales orders** — created only from approved/sent/accepted quotations; draft fulfilment plan per line
-  (stock / procure, warehouse); credit-limit approval; on confirmation stock is reserved, short stock lines are split
-  automatically and a purchase requisition is raised; each line shows its own stock, procurement and delivery status;
-  hold/release and cancel (which releases reservations and requisitions).
-* **Approvals** — one list of everything waiting (quotations, orders, stock adjustments); nobody approves their own.
-* **Dashboard** — sales, gross profit and margin (cost-permitted roles), win rate, pipeline, open quotations and
-  orders, monthly sales chart, quotations by status, top customers, sales by rep, follow-ups due, open orders and a
-  customer-activity timeline. Sales executives see only their own figures.
+1. **System Settings → Company:** legal name, TRN, address, bank details and the standard terms for quotations, purchase orders and invoices.
+2. **System Settings → Bank and cash accounts:** add each bank account (and petty cash).
+3. **System Settings → Exchange rates:** today's USD/EUR/SAR rates, if you trade in other currencies.
+4. **System Settings → Approval limits:** check the discount, margin, PO and bill thresholds.
+5. **Warehouses**, then **Products** (with prices and minimum stock levels), **Suppliers** and **Customers**.
+6. **Opening stock:** enter one **Stock adjustment** per warehouse with reason *Opening balance* and the counted quantities and
+   unit costs; another user approves it.
+7. Invite the staff and give each the right role (User Management → user → Roles).
 
-## Roles (seeded in migration 0003)
+### Custom domain (optional)
+
+**Vercel → Project → Settings → Domains → Add** (e.g. `erp.smp.ae`) and create the DNS record Vercel shows at your domain
+registrar. Then repeat Step 5 with the new address.
+
+### Production checklist
+
+* Supabase **Pro** plan for daily backups (and Point-in-Time Recovery if you want restore to the minute). The free plan
+  pauses inactive projects and has no backups.
+* Custom SMTP configured (Step 3.4) — otherwise invitations and password resets stop after a few emails.
+* Only the Super Administrator role has `settings.manage` and `user.manage`; give them to as few people as possible.
+* `SUPABASE_SERVICE_ROLE_KEY` exists **only** in Vercel's environment variables. It is never sent to the browser, and the
+  build fails if anyone imports the admin client into browser code.
+
+---
+
+## UAE e-invoicing
+
+The system produces each posted invoice and credit note as a **Peppol PINT AE** (UBL 2.1) document and sends it to your
+**FTA-accredited service provider (ASP)**, which validates it, delivers it to the customer's provider and reports it to
+the FTA.
+
+* **Turn it on:** sign up with an ASP. They give you an API endpoint, an API key and your Peppol participant ID. Then:
+  1. Put `EINVOICE_ASP_URL`, `EINVOICE_ASP_API_KEY` and `EINVOICE_ASP_NAME` in Vercel and redeploy.
+  2. In **System Settings → UAE e-invoicing**, enter the provider and participant ID and tick the box.
+* **Day to day:**
+  * Posting an invoice sends it straight away. The invoice shows *queued → submitted → accepted*, or *rejected* with the
+    provider's message.
+  * Failed sends retry with back-off, and the scheduled job sweeps up anything left over.
+  * Rejected invoices are corrected and resent from the invoice page.
+  * Once reported, an invoice can no longer be voided; you issue a credit note instead.
+* **Adapting to your ASP:** connectors differ in small ways (authentication header, response fields).
+  * `src/lib/einvoicing/provider.ts` contains a generic HTTPS connector with a single `mapResponse()` to adjust.
+  * `src/lib/einvoicing/pint-ae.ts` builds the XML.
+  * Ask your ASP to validate a test invoice during onboarding before you enable it in production.
+
+---
+
+## Running it on your computer
+
+```bash
+cp .env.example .env.local     # fill in the Supabase URL, anon key (and service key for invites)
+npm install
+npm run dev                    # http://localhost:3000
+```
+
+Checks (the same ones GitHub Actions runs on every push):
+
+```bash
+npm run typecheck
+npm run build
+PGHOST=localhost PGPORT=5432 PGPASSWORD=postgres npm run db:test   # needs a local PostgreSQL 16+
+```
+
+The database tests apply all migrations to an empty PostgreSQL with a small Supabase stand-in
+(`supabase/tests/00_supabase_stub.sql`) and then act out real scenarios as different users:
+
+* **Products & inventory:** product validation, approved adjustments, negative-stock authorisation, transfers, and a ledger-integrity check.
+* **Sales:** credit limits, discount and margin approvals, revisions, and per-rep visibility.
+* **Users:** grants and denies, expiry, session revocation, and deactivation.
+* **Procurement:** supplier quote selection, PO approval, over-receipt blocking, and back-to-back reservation.
+* **Logistics:**
+  * delivery only from reserved stock;
+  * dispatch through a shipment;
+  * proof of delivery;
+  * order fulfilment roll-up.
+* **Finance:**
+  * invoicing limited to delivered quantities;
+  * receipts and bounced payments;
+  * credit notes;
+  * the e-invoice queue;
+  * three-way match and variance approval;
+  * supplier payments;
+  * expenses;
+  * VAT summary;
+  * who can see what.
+
+## Roles
 
 `super_admin`, `managing_director`, `sales_manager`, `sales_executive`, `accounts_manager`, `accounts_executive`,
 `logistics_manager`, `logistics_executive`, `procurement_manager`, `procurement_executive`, `warehouse_manager`,
-`customer_support_executive`. Each maps to fine-grained permissions such as `inventory.receive` or
-`inventory.allow_negative`; the mapping lives in `role_permissions` and can be changed without code.
+`customer_support_executive`.
 
-Inventory-related defaults:
+* Each role maps to fine-grained permissions such as `invoice.post` or `inventory.allow_negative`.
+* Managers can change the mapping in **Roles & Permissions**.
+* Individual users can be granted extra permissions, or denied ones, optionally until a date.
+* Nobody can approve their own request (quotation, order, PO, bill, adjustment or expense) unless they are given `approval.self_approve`.
 
-| Permission | Who has it by default |
-| --- | --- |
-| `inventory.view`, `product.view` | Most operational roles |
-| `inventory.receive`, `inventory.issue`, `inventory.transfer`, `inventory.adjust` | Warehouse Manager (transfer also Logistics Manager) |
-| `inventory.approve_adjustment` | Warehouse Manager, Managing Director (never your own adjustment) |
-| `inventory.allow_negative` | Managing Director only |
-| `inventory.view_valuation` | MD, Accounts Manager, Procurement Manager, Warehouse Manager |
-| `product.edit`, `product.view_cost` | Procurement Manager / Executive |
-| `category.manage` | Procurement Manager |
+## How stock and money are protected
 
-## How stock is protected
-
-* **Available = Physical − Reserved**, stored as a generated column so it can't drift.
-* **Every change is a movement.** Balances (`stock_levels`) can only be changed by the posting functions,
-  which always write an immutable row in `stock_movements` in the same transaction. A trigger blocks
-  direct edits to balances from *any* role, including the database owner, and a deferred check at commit
-  proves that each balance equals the sum of its movements.
-* **No direct balance edits for users** — corrections go through a stock adjustment, which must be
-  approved by someone other than the person who prepared it before it posts.
-* **No negative stock** unless a holder of `inventory.allow_negative` authorises that specific document;
-  the authoriser is recorded on the movement.
-* **Reserved stock is protected** — it cannot be issued, transferred or adjusted away.
-* **One active reservation per order line and warehouse** (unique index), so reservations can't duplicate.
-* Costs and valuation are hidden from users without the relevant permission, in the database (RLS and
-  views), not only in the UI.
-
-## Security notes
-
-* All reads go through Row Level Security; all writes go through `security definer` functions that check
-  permissions themselves. Pages check permissions too (`requirePermission`), but the database is the real gate.
-* The browser only ever has the anon key. File uploads go straight to the private `product-media`
-  bucket, whose storage policies require `product.edit`; files are served through short-lived signed URLs.
-
-## Tests
-
-The database tests run against a real PostgreSQL 16 with a small Supabase stub:
-```bash
-PGHOST=/path/to/socket PGPORT=5432 npm run db:test
-```
-They cover categories, product validation, approved adjustments, weighted-average costing, negative-stock
-authorisation, a mixed sales order (stock / procure / partly in stock), back-to-back receipts, transfers,
-reservation release, cost visibility per role and ledger integrity — and for sales: customer validation and
-duplicate checks, per-rep visibility, credit-limit changes, enquiries and follow-ups, quotation totals and VAT,
-discount approval, margin visibility, revisions, conversion, credit-limit approval, hold, cancellation and the
-dashboard's scope per role.
-
-See `docs/DATABASE.md` for what each table is for.
+* **Stock:**
+  * Balances change only through posting functions, which write a permanent movement in the same transaction.
+  * Direct edits are blocked for every role.
+  * A check at commit proves each balance equals its movements.
+  * Negative stock needs management authorisation on that specific document.
+  * Reserved stock cannot be issued, transferred, adjusted or delivered to someone else.
+* **Documents:**
+  * Posted documents (GRNs, delivery notes, invoices, bills) are locked; corrections are made by reversal documents.
+  * Numbers are gap-free per year.
+* **Quantities:**
+  * Received quantities never exceed ordered quantities.
+  * Delivered never exceeds ordered.
+  * Invoiced never exceeds delivered.
+  * Billed never exceeds received.
+  * Each of these limits holds even when two people work at the same time.
+* **Visibility:**
+  * Costs, margins and stock values are visible only to roles allowed to see them, enforced in the database.
+  * Sales executives see only their own customers, quotations, orders and invoices.
+* **Audit:** every change to business data is written to the audit log, with who made it and when.

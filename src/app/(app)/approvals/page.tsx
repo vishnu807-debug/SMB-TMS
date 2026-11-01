@@ -12,10 +12,10 @@ import { formatDateTime, humanize } from "@/lib/utils";
 import { Decide } from "./decide";
 
 export const metadata: Metadata = { title: "Approvals" };
-const LINK: Record<string, string> = { quotation: "/quotations/", sales_order: "/sales-orders/", stock_adjustment: "/inventory/adjustments/", purchase_order: "/purchase-orders/" };
+const LINK: Record<string, string> = { quotation: "/quotations/", sales_order: "/sales-orders/", stock_adjustment: "/inventory/adjustments/", purchase_order: "/purchase-orders/", supplier_bill: "/payables/bills/", expense: "/expenses/" };
 
 export default async function ApprovalsPage({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
-  const user = await requirePermission(["approval.view", "quotation.approve", "sales_order.approve", "inventory.approve_adjustment", "purchase_order.approve"]);
+  const user = await requirePermission(["approval.view", "quotation.approve", "sales_order.approve", "inventory.approve_adjustment", "purchase_order.approve", "payable.approve", "expense.approve"]);
   const sp = await searchParams;
   const status = sp.status ?? "pending";
   const supabase = await createClient();
@@ -27,7 +27,7 @@ export default async function ApprovalsPage({ searchParams }: { searchParams: Pr
 
   return (
     <>
-      <PageHeader title="Approvals" description="Quotations above discount or margin limits, orders over credit limit, purchase orders above the limit, and stock adjustments." />
+      <PageHeader title="Approvals" description="Quotations above discount or margin limits, orders over credit limit, purchase orders above the limit, supplier bill variances, expense claims and stock adjustments." />
       <Card>
         <form className="flex gap-3 border-b border-slate-200 p-4">
           <Select name="status" defaultValue={status} className="w-44">

@@ -3,7 +3,8 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 type CookieToSet = { name: string; value: string; options: CookieOptions };
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/auth", "/forgot-password"];
+// /api/cron/* authenticate themselves with CRON_SECRET (Vercel Cron), not a user session.
+const PUBLIC_PATHS = ["/login", "/auth", "/forgot-password", "/api/cron"];
 
 /** Refreshes the session cookie on every request and sends signed-out users to /login. */
 export async function updateSession(request: NextRequest) {

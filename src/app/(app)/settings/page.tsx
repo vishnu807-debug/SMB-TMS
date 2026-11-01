@@ -1,0 +1,76 @@
+import type { Metadata } from "next";
+import { requirePermission, can } from "@/lib/auth/session";
+import { createClient } from "@/lib/supabase/server";
+import { PageHeader } from "@/components/layout/page-header";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { StatusBadge } from "@/components/ui/badge";
+import { EmptyRow, TBody, TD, TH, THead, TR, Table } from "@/components/ui/table";
+import { BankForm, BankToggle, CompanyForm, EinvoicingForm, RateForm, RuleForm } from "./settings-forms";
+import { formatDate, humanize } from "@/lib/utils";
+
+export const metadata: Metadata = { title: "System settings" };
+const UNITS: Record<string, string> = { max_discount_pct: "%", margin_pct: "%", price_variance_pct: "%", total_base: "AED", credit_exceeded: "" };
+
+export default async function SettingsPage() {
+  const user = await requirePermission(["settings.manage", "payable.approve"]);
+  const supabase = await createClient();
+  const [{ data: s }, { data: rates }, { data: rules }, { data: banks }, { data: cur }] = await Promise.all([
+    supabase.from("company_settings").select("*").single(),
+    supabase.from("exchange_rates").select("id, currency_code, rate_date, rate_to_base").order("rate_date", { ascending: false }).limit(30),
+    supabase.from("approval_rules").select("id, doc_type, name, metric, comparison, threshold, approver_permission, is_active").order("doc_type"),
+    supabase.from("bank_accounts").select("id, name, kind, bank_name, iban, currency_code, is_active").order("name"),
+    supabase.from("currencies").select("code").eq("is_active", true).order("code"),
+  ]);
+  const manage = can(user, "settings.manage");
+  const base = s?.base_currency ?? "AED";
+  const currencies = (cur ?? []).map((c) => c.code);
+  const configured = !!process.env.EINVOICE_ASP_URL && !!process.env.EINVOICE_ASP_API_KEY;
+  return (
+    <>
+      <PageHeader title="System settings" description="Company details printed on documents, e-invoicing, exchange rates, approval limits and bank accounts." />
+      <div className="space-y-6">
+        <Card><CardHeader><CardTitle>Company</CardTitle></CardHeader><CardContent><CompanyForm s={s ?? {}} disabled={!manage} /></CardContent></Card>
+        <Card><CardHeader><CardTitle>UAE e-invoicing</CardTitle></CardHeader><CardContent><EinvoicingForm s={s ?? {}} disabled={!manage} configured={configured} /></CardContent></Card>
+        <Card>
+          <CardHeader><CardTitle>Approval limits</CardTitle></CardHeader>
+          <Table>
+            <THead><TR><TH>Document</TH><TH>Rule</TH><TH>Approver needs</TH><TH className="text-right">Limit</TH></TR></THead>
+            <TBody>
+              {(rules ?? []).map((r) => (
+                <TR key={r.id}><TD>{humanize(r.doc_type)}</TD><TD>{r.name}</TD><TD className="font-mono text-xs">{r.approver_permission}</TD>
+                  <TD>{r.metric === "credit_exceeded" ? <span className="block text-right text-xs text-slate-500">Always when over the credit limit</span>
+                    : <RuleForm rule={{ id: r.id, threshold: Number(r.threshold), is_active: r.is_active }} disabled={!manage} unit={UNITS[r.metric] ?? ""} />}</TD></TR>
+              ))}
+            </TBody>
+          </Table>
+        </Card>
+        <Card>
+          <CardHeader><CardTitle>Exchange rates to {base}</CardTitle></CardHeader>
+          {manage && <CardContent className="border-b border-slate-100"><RateForm currencies={currencies} base={base} /></CardContent>}
+          <Table>
+            <THead><TR><TH>Currency</TH><TH>Date</TH><TH numeric>1 unit = {base}</TH></TR></THead>
+            <TBody>
+              {(rates ?? []).length === 0 && <EmptyRow colSpan={3}>No rates.</EmptyRow>}
+              {(rates ?? []).map((r) => <TR key={r.id}><TD>{r.currency_code}</TD><TD>{formatDate(r.rate_date)}</TD><TD numeric>{Number(r.rate_to_base)}</TD></TR>)}
+            </TBody>
+          </Table>
+        </Card>
+        <Card>
+          <CardHeader><CardTitle>Bank and cash accounts</CardTitle></CardHeader>
+          {can(user, "payable.approve") && <CardContent className="border-b border-slate-100"><BankForm currencies={currencies} base={base} /></CardContent>}
+          <Table>
+            <THead><TR><TH>Name</TH><TH>Type</TH><TH>Bank</TH><TH>IBAN</TH><TH>Currency</TH><TH>Status</TH><TH /></TR></THead>
+            <TBody>
+              {(banks ?? []).length === 0 && <EmptyRow colSpan={7}>No accounts yet — add one before recording payments.</EmptyRow>}
+              {(banks ?? []).map((b) => (
+                <TR key={b.id}><TD className="font-medium">{b.name}</TD><TD>{humanize(b.kind)}</TD><TD>{b.bank_name ?? "—"}</TD><TD className="font-mono text-xs">{b.iban ?? "—"}</TD>
+                  <TD>{b.currency_code}</TD><TD><StatusBadge status={b.is_active ? "active" : "inactive"} /></TD>
+                  <TD className="text-right">{can(user, "payable.approve") && <BankToggle id={b.id} active={b.is_active} />}</TD></TR>
+              ))}
+            </TBody>
+          </Table>
+        </Card>
+      </div>
+    </>
+  );
+}

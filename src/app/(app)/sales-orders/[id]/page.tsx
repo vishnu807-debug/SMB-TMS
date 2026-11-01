@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Truck } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
+import { CreateInvoiceButton } from "@/components/finance/create-invoice-button";
 import { requirePermission, can } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { loadActivities } from "@/lib/activities";
@@ -44,6 +45,10 @@ export default async function SalesOrderPage({ params }: { params: Promise<{ id:
   const { data: deliveries } = can(user, "delivery.view")
     ? await supabase.from("delivery_notes").select("id, doc_no, delivery_date, status, warehouse:warehouses(code), lines:delivery_note_lines(qty)").eq("sales_order_id", id).order("created_at")
     : { data: [] as any[] };
+  const { data: invoices } = can(user, "invoice.view")
+    ? await supabase.from("customer_invoices").select("id, kind, doc_no, invoice_date, total, balance, status").eq("sales_order_id", id).order("created_at")
+    : { data: [] as any[] };
+  const uninvoiced = (lines ?? []).some((l: any) => !l.is_cancelled && Number(l.qty_delivered) > Number(l.qty_invoiced));
   const lineIds = new Set((lines ?? []).map((l) => l.id));
   const resByLine = new Map<string, string[]>();
   (reservations ?? []).filter((r: any) => lineIds.has(r.sales_order_line_id)).forEach((r: any) => {
@@ -75,6 +80,7 @@ export default async function SalesOrderPage({ params }: { params: Promise<{ id:
         actions={<>
           {["confirmed", "partially_fulfilled"].includes(so.status) && can(user, "delivery.manage") &&
             <Link href={`/logistics/deliveries/new?order=${so.id}`} className={buttonVariants({ variant: "outline" })}><Truck /> Delivery note</Link>}
+          {uninvoiced && can(user, "invoice.create") && <CreateInvoiceButton orderId={so.id} label="Invoice deliveries" size="default" />}
           <OrderActions id={so.id} actions={actions} />
         </>}
       />
@@ -148,6 +154,20 @@ export default async function SalesOrderPage({ params }: { params: Promise<{ id:
               ].map(([k, v]) => <div key={k as string}><dt className="text-xs font-medium uppercase tracking-wide text-slate-500">{k}</dt><dd className="mt-0.5 text-slate-900">{v}</dd></div>)}
             </CardContent>
           </Card>
+          {(invoices ?? []).length > 0 && (
+            <Card>
+              <CardHeader><CardTitle>Invoices</CardTitle></CardHeader>
+              <Table>
+                <THead><TR><TH>Number</TH><TH>Date</TH><TH numeric>Total</TH><TH numeric>Balance</TH><TH>Status</TH></TR></THead>
+                <TBody>
+                  {(invoices ?? []).map((i: any) => (
+                    <TR key={i.id}><TD><Link href={`/invoices/${i.id}`} className="font-mono text-xs font-semibold text-navy-800 hover:underline">{i.doc_no ?? "Draft"}</Link>{i.kind === "credit_note" && <span className="ml-1 text-xs text-slate-500">credit</span>}</TD>
+                      <TD>{formatDate(i.invoice_date)}</TD><TD numeric>{formatMoney(i.total)}</TD><TD numeric>{i.kind === "invoice" && i.status !== "draft" && i.status !== "void" ? formatMoney(i.balance) : "—"}</TD><TD><StatusBadge status={i.status} /></TD></TR>
+                  ))}
+                </TBody>
+              </Table>
+            </Card>
+          )}
           {(deliveries ?? []).length > 0 && (
             <Card>
               <CardHeader><CardTitle>Deliveries</CardTitle></CardHeader>
