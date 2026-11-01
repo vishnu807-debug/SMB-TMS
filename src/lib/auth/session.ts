@@ -10,6 +10,8 @@ export type CurrentUser = {
   jobTitle: string | null;
   isActive: boolean;
   permissions: Set<string>;
+  /** Modules switched on for this installation (backend setting). */
+  modules: Set<string>;
 };
 
 /** The signed-in user with their effective permissions (one load per request). */
@@ -17,9 +19,10 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
-  const [{ data: profile }, { data: perms }] = await Promise.all([
+  const [{ data: profile }, { data: perms }, { data: mods }] = await Promise.all([
     supabase.from("profiles").select("full_name, email, job_title, is_active").eq("id", user.id).single(),
     supabase.rpc("my_permissions"),
+    supabase.rpc("enabled_modules"),
   ]);
   return {
     id: user.id,
@@ -28,6 +31,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
     jobTitle: profile?.job_title ?? null,
     isActive: profile?.is_active ?? false,
     permissions: new Set<string>((perms as string[] | null) ?? []),
+    modules: new Set<string>((mods as string[] | null) ?? ["core"]),
   };
 });
 
@@ -51,4 +55,9 @@ export async function requirePermission(code: string | string[]): Promise<Curren
 
 export function can(user: CurrentUser, code: string) {
   return user.permissions.has(code);
+}
+
+/** True when any of the given modules is switched on. */
+export function moduleOn(user: CurrentUser, codes: string | string[]) {
+  return (Array.isArray(codes) ? codes : [codes]).some((c) => user.modules.has(c));
 }

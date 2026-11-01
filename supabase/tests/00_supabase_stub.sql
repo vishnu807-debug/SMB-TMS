@@ -42,3 +42,11 @@ create table if not exists auth.sessions (
   ip inet,
   aal text default 'aal1'
 );
+
+-- Test helper: act as the backend (SQL editor) — no role, no JWT.
+create or replace function public.test_backend() returns void language plpgsql as $$
+begin
+  reset role;
+  perform set_config('request.jwt.claim.sub', '', false);
+  perform set_config('request.jwt.claims', '', false);
+end $$;

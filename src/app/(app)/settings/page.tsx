@@ -9,17 +9,19 @@ import { BankForm, BankToggle, CompanyForm, EinvoicingForm, RateForm, RuleForm }
 import { formatDate, humanize } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "System settings" };
+const RULE_MODULE: Record<string, string> = { quotation: "sales", sales_order: "sales", purchase_order: "procurement", supplier_bill: "finance", expense: "finance", stock_adjustment: "inventory" };
 const UNITS: Record<string, string> = { max_discount_pct: "%", margin_pct: "%", price_variance_pct: "%", total_base: "AED", credit_exceeded: "" };
 
 export default async function SettingsPage() {
   const user = await requirePermission(["settings.manage", "payable.approve"]);
   const supabase = await createClient();
-  const [{ data: s }, { data: rates }, { data: rules }, { data: banks }, { data: cur }] = await Promise.all([
+  const [{ data: s }, { data: rates }, { data: rules }, { data: banks }, { data: cur }, { data: modules }] = await Promise.all([
     supabase.from("company_settings").select("*").single(),
     supabase.from("exchange_rates").select("id, currency_code, rate_date, rate_to_base").order("rate_date", { ascending: false }).limit(30),
     supabase.from("approval_rules").select("id, doc_type, name, metric, comparison, threshold, approver_permission, is_active").order("doc_type"),
     supabase.from("bank_accounts").select("id, name, kind, bank_name, iban, currency_code, is_active").order("name"),
     supabase.from("currencies").select("code").eq("is_active", true).order("code"),
+    supabase.from("system_modules").select("code, name, description, is_core, is_enabled, requires, changed_at").order("sort_order"),
   ]);
   const manage = can(user, "settings.manage");
   const base = s?.base_currency ?? "AED";
@@ -27,16 +29,33 @@ export default async function SettingsPage() {
   const configured = !!process.env.EINVOICE_ASP_URL && !!process.env.EINVOICE_ASP_API_KEY;
   return (
     <>
-      <PageHeader title="System settings" description="Company details printed on documents, e-invoicing, exchange rates, approval limits and bank accounts." />
+      <PageHeader title="System settings" description="Company details printed on documents, licensed modules, exchange rates, approval limits and bank accounts." />
       <div className="space-y-6">
         <Card><CardHeader><CardTitle>Company</CardTitle></CardHeader><CardContent><CompanyForm s={s ?? {}} disabled={!manage} /></CardContent></Card>
-        <Card><CardHeader><CardTitle>UAE e-invoicing</CardTitle></CardHeader><CardContent><EinvoicingForm s={s ?? {}} disabled={!manage} configured={configured} /></CardContent></Card>
+        {user.modules.has("einvoicing") && (
+          <Card><CardHeader><CardTitle>UAE e-invoicing</CardTitle></CardHeader><CardContent><EinvoicingForm s={s ?? {}} disabled={!manage} configured={configured} /></CardContent></Card>
+        )}
+        {manage && (
+          <Card>
+            <CardHeader><CardTitle>Licensed modules</CardTitle><span className="text-xs text-slate-500">Activated by your system provider</span></CardHeader>
+            <Table>
+              <THead><TR><TH>Module</TH><TH>What it covers</TH><TH>Needs</TH><TH>Status</TH></TR></THead>
+              <TBody>
+                {(modules ?? []).map((m) => (
+                  <TR key={m.code}><TD className="font-medium">{m.name}</TD><TD className="max-w-md text-slate-600">{m.description}</TD>
+                    <TD>{m.requires.length ? m.requires.map((r: string) => modules?.find((x) => x.code === r)?.name ?? r).join(", ") : "—"}</TD>
+                    <TD><StatusBadge status={m.is_core ? "active" : m.is_enabled ? "active" : "inactive"} />{m.changed_at && <p className="text-xs text-slate-500">since {formatDate(m.changed_at)}</p>}</TD></TR>
+                ))}
+              </TBody>
+            </Table>
+          </Card>
+        )}
         <Card>
           <CardHeader><CardTitle>Approval limits</CardTitle></CardHeader>
           <Table>
             <THead><TR><TH>Document</TH><TH>Rule</TH><TH>Approver needs</TH><TH className="text-right">Limit</TH></TR></THead>
             <TBody>
-              {(rules ?? []).map((r) => (
+              {(rules ?? []).filter((r) => user.modules.has(RULE_MODULE[r.doc_type] ?? "core")).map((r) => (
                 <TR key={r.id}><TD>{humanize(r.doc_type)}</TD><TD>{r.name}</TD><TD className="font-mono text-xs">{r.approver_permission}</TD>
                   <TD>{r.metric === "credit_exceeded" ? <span className="block text-right text-xs text-slate-500">Always when over the credit limit</span>
                     : <RuleForm rule={{ id: r.id, threshold: Number(r.threshold), is_active: r.is_active }} disabled={!manage} unit={UNITS[r.metric] ?? ""} />}</TD></TR>
@@ -55,6 +74,7 @@ export default async function SettingsPage() {
             </TBody>
           </Table>
         </Card>
+        {user.modules.has("finance") && (
         <Card>
           <CardHeader><CardTitle>Bank and cash accounts</CardTitle></CardHeader>
           {can(user, "payable.approve") && <CardContent className="border-b border-slate-100"><BankForm currencies={currencies} base={base} /></CardContent>}
@@ -70,6 +90,7 @@ export default async function SettingsPage() {
             </TBody>
           </Table>
         </Card>
+        )}
       </div>
     </>
   );

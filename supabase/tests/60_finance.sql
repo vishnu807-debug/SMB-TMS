@@ -85,7 +85,8 @@ select assert_eq((select count(*) from public.v_receivables where customer_id = 
 -- 3. E-invoicing queue
 -- =============================================================================
 reset role;
-update public.company_settings set einvoicing_enabled = true, einvoice_provider = 'Test ASP', trn = '100123456700003';
+update public.company_settings set einvoice_provider = 'Test ASP', trn = '100123456700003';
+select public.test_backend(); select public.set_module_enabled('einvoicing', true);
 select test_as('acct@smp.test');
 select set_config('test.inv3', public.save_invoice_draft(jsonb_build_object('customer_id', current_setting('test.cust'),
   'lines', jsonb_build_array(jsonb_build_object('description', 'Cable termination service', 'qty', 1, 'unit_price', 500))))::text, false);
@@ -103,7 +104,7 @@ select assert_eq((select (public.einvoice_document(current_setting('test.inv3'):
 select test_as('acct@smp.test');
 select expect_error(format('select public.void_invoice(%L, %L)', current_setting('test.inv3'), 'wrong'), 'Issue a credit note');
 reset role;
-update public.company_settings set einvoicing_enabled = false;
+select public.test_backend(); select public.set_module_enabled('einvoicing', false);
 
 -- =============================================================================
 -- 4. Supplier bills: three-way match and variance approval

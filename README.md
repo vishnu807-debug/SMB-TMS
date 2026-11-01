@@ -53,7 +53,7 @@ npx supabase db push                                 # applies supabase/migratio
 `supabase/migrations/` **one at a time, in filename order** (`…0001_foundation.sql` first, `…0017_finance.sql` last).
 Every file must finish with "Success" before you run the next one.
 
-Afterwards **Table Editor** should list tables such as `customers`, `sales_orders`, `customer_invoices`, and
+Then switch off any modules the client has not taken (see *Licensed modules* below). Afterwards **Table Editor** should list tables such as `customers`, `sales_orders`, `customer_invoices`, and
 **Storage** should show the private buckets `product-media`, `delivery-pod` and `finance-docs`.
 
 ### Step 3 — Configure sign-in (Supabase → Authentication)
@@ -118,7 +118,7 @@ low-stock alerts and expiring quotations at 08:00 Dubai time, and an e-invoice r
 In the app, as the administrator:
 
 1. **System Settings → Company:** legal name, TRN, address, bank details and the standard terms for quotations, purchase orders and invoices.
-2. **System Settings → Bank and cash accounts:** add each bank account (and petty cash).
+2. **System Settings → Bank and cash accounts** (Finance module): add each bank account (and petty cash).
 3. **System Settings → Exchange rates:** today's USD/EUR/SAR rates, if you trade in other currencies.
 4. **System Settings → Approval limits:** check the discount, margin, PO and bill thresholds.
 5. **Warehouses**, then **Products** (with prices and minimum stock levels), **Suppliers** and **Customers**.
@@ -142,15 +142,67 @@ registrar. Then repeat Step 5 with the new address.
 
 ---
 
+## Licensed modules (switching modules on and off)
+
+Each installation can run only the modules the client has taken. Modules are switched **in the backend**: the
+Supabase SQL editor (or anything using the service-role key). Nobody can switch them from inside the app, not even
+the client's Super Administrator. Admins can see what is active in **System Settings → Licensed modules**.
+
+| Code | Module | Needs |
+| --- | --- | --- |
+| `core` | Users, roles, approvals, product catalogue, notifications, audit log, settings | always on |
+| `sales` | Customers, enquiries, follow-ups, quotations, sales orders, sales dashboard | — |
+| `inventory` | Stock by warehouse, issues, transfers, adjustments, reservations, movements, valuation | — |
+| `procurement` | Suppliers, requisitions, supplier quotations, purchase orders, receiving | — |
+| `logistics` | Delivery notes, shipments, dispatch, proof of delivery | `sales` |
+| `finance` | Invoices, credit notes, receipts, supplier bills and payments, expenses, bank accounts, VAT summary | — |
+| `einvoicing` | UAE e-invoicing (PINT AE) through an accredited service provider | `finance` |
+
+New installations start with everything on except `einvoicing`. Open **Supabase → SQL Editor** and run, for example:
+
+```sql
+-- See what is on
+select code, name, is_enabled, requires from public.system_modules order by sort_order;
+
+-- A client who takes Sales and Procurement only
+select public.set_module_enabled('logistics', false);   -- switch off dependants first
+select public.set_module_enabled('finance',   false);
+select public.set_module_enabled('inventory', false);
+
+-- Later the client signs up for Finance and e-invoicing (the third argument is an optional note kept in the log)
+select public.set_module_enabled('finance',    true, 'Upgrade per contract 2027-01');
+select public.set_module_enabled('einvoicing', true);
+```
+
+How a switched-off module behaves:
+
+* It disappears from the menu.
+* Its pages show "This module is not enabled".
+* Its permissions are refused by the database for every user, so its functions cannot be called and its data cannot be
+  read through the API.
+* **No data is deleted.** Switching it back on brings everything back as it was.
+* Dependencies are checked: you cannot switch on Logistics without Sales, or switch off Finance while e-invoicing is on.
+
+With Sales and Procurement but no Inventory:
+
+* Purchase orders can still be received (the *Goods Received* screen stays available).
+* Items bought for customer orders are reserved for them on arrival.
+* The stock screens (overview, transfers, adjustments and so on) stay hidden.
+
+---
+
 ## UAE e-invoicing
 
 The system produces each posted invoice and credit note as a **Peppol PINT AE** (UBL 2.1) document and sends it to your
 **FTA-accredited service provider (ASP)**, which validates it, delivers it to the customer's provider and reports it to
 the FTA.
 
-* **Turn it on:** sign up with an ASP. They give you an API endpoint, an API key and your Peppol participant ID. Then:
+* **Turn it on** (only for clients who take it): sign up with an ASP. They give you an API endpoint, an API key and the
+  client's Peppol participant ID. Then:
   1. Put `EINVOICE_ASP_URL`, `EINVOICE_ASP_API_KEY` and `EINVOICE_ASP_NAME` in Vercel and redeploy.
-  2. In **System Settings → UAE e-invoicing**, enter the provider and participant ID and tick the box.
+  2. Activate the module in the backend: `select public.set_module_enabled('einvoicing', true);`
+  3. In **System Settings → UAE e-invoicing** (visible only once the module is on), enter the provider and participant ID.
+  While the module is off, invoices are never queued or sent.
 * **Day to day:**
   * Posting an invoice sends it straight away. The invoice shows *queued → submitted → accepted*, or *rejected* with the
     provider's message.
@@ -192,6 +244,7 @@ The database tests apply all migrations to an empty PostgreSQL with a small Supa
   * dispatch through a shipment;
   * proof of delivery;
   * order fulfilment roll-up.
+* **Modules:** switching only from the backend, dependency checks, data hidden but kept when off, and e-invoicing following its module.
 * **Finance:**
   * invoicing limited to delivered quantities;
   * receipts and bounced payments;

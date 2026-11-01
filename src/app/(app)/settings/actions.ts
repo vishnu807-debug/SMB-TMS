@@ -25,16 +25,13 @@ export async function saveCompany(_p: ActionResult | undefined, fd: FormData): P
 }
 
 export async function saveEinvoicing(_p: ActionResult | undefined, fd: FormData): Promise<ActionResult> {
-  const enabled = fd.get("einvoicing_enabled") === "on";
   const participant = str(fd.get("einvoice_participant_id"));
-  if (enabled && !participant) return { ok: false, error: "Enter the Peppol participant ID issued by your service provider before enabling e-invoicing." };
+  if (participant && !/^\d{4}:[A-Za-z0-9.-]{3,60}$/.test(participant)) return { ok: false, error: "The participant ID looks like 0235:1XXXXXXXXXXXXXX (scheme:identifier)." };
   const supabase = await createClient();
-  const { data: s } = await supabase.from("company_settings").select("trn").single();
-  if (enabled && !s?.trn) return { ok: false, error: "Enter the company TRN first." };
-  const { error } = await supabase.from("company_settings").update({ einvoicing_enabled: enabled, einvoice_provider: str(fd.get("einvoice_provider")) || null, einvoice_participant_id: participant || null }).eq("id", true);
+  const { error } = await supabase.from("company_settings").update({ einvoice_provider: str(fd.get("einvoice_provider")) || null, einvoice_participant_id: participant || null }).eq("id", true);
   if (error) return { ok: false, error: userMessage(error) };
   revalidatePath("/settings");
-  return { ok: true, message: enabled ? "E-invoicing is on: new invoices will be sent to the service provider." : "E-invoicing settings saved." };
+  return { ok: true, message: "E-invoicing details saved." };
 }
 
 export async function addExchangeRate(_p: ActionResult | undefined, fd: FormData): Promise<ActionResult> {

@@ -44,13 +44,9 @@ export function EinvoicingForm({ s, disabled, configured }: { s: Record<string, 
     <form action={action} className="grid gap-4 md:grid-cols-3">
       <Result state={state} />
       <Alert tone={configured ? "success" : "warning"} className="md:col-span-3">
-        {configured ? "The connection to the service provider is configured on the server." :
-          "The server has no service-provider credentials yet (EINVOICE_ASP_URL and EINVOICE_ASP_API_KEY). Invoices will wait in the queue until they are added."}
+        {configured ? "The module is active and the connection to the service provider is configured. Every posted invoice and credit note is sent automatically." :
+          "The module is active, but the server has no service-provider credentials yet (EINVOICE_ASP_URL and EINVOICE_ASP_API_KEY). Posted invoices wait in the queue until they are added."}
       </Alert>
-      <label className="flex items-center gap-2 text-sm font-medium md:col-span-3">
-        <input type="checkbox" name="einvoicing_enabled" defaultChecked={s.einvoicing_enabled} disabled={disabled} className="size-4" />
-        Send every posted invoice and credit note through e-invoicing (PINT AE)
-      </label>
       <Field label="Service provider (ASP)"><Input name="einvoice_provider" defaultValue={s.einvoice_provider ?? ""} disabled={disabled} maxLength={120} /></Field>
       <Field label="Peppol participant ID" hint="e.g. 0235:1XXXXXXXXXXXXXX — from your ASP"><Input name="einvoice_participant_id" defaultValue={s.einvoice_participant_id ?? ""} disabled={disabled} maxLength={80} /></Field>
       {!disabled && <div className="flex items-end justify-end"><SubmitButton>Save</SubmitButton></div>}

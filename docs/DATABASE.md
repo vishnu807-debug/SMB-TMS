@@ -14,6 +14,7 @@ Migrations run in file order. Gaps in the numbering are reserved for modules sti
 | `0012_security` | Row Level Security policies and grants |
 | `0013_dashboards` | Sales dashboard function |
 | `0014_user_management` | Per-user permission grants/denies, session revocation, auth events, user admin functions |
+| `0018_modules` | Licensed modules: `system_modules`, permission-to-module map, `set_module_enabled()` (backend only); e-invoicing becomes a module |
 | `0017_finance` | Bank accounts, invoices & credit notes, receipts, supplier bills (three-way match), supplier payments, expenses, e-invoicing queue, VAT summary |
 | `0016_logistics` | Shipments, delivery notes, dispatch from reservations, proof of delivery, order fulfilment roll-up |
 | `0015_procurement` | Supplier contacts, supplier quotations, purchase orders with approval, receiving against POs, incoming stock from POs |
@@ -128,3 +129,12 @@ The customer credit position now counts unpaid invoices plus the uninvoiced valu
 `record_customer_payment`, `allocate_customer_payment`, `void_customer_payment`, `save_supplier_bill`, `submit_supplier_bill`,
 `void_supplier_bill`, `record_supplier_payment`, `void_supplier_payment`, `save_expense`, `submit_expense`, `mark_expense_paid`,
 `vat_summary`. Server-only (service role): `einvoice_claim_batch`, `einvoice_record_result`, `einvoice_document`.
+
+## Licensed modules
+
+| Table / function | Purpose |
+| --- | --- |
+| `system_modules` | One row per module (core, sales, inventory, procurement, logistics, finance, einvoicing) with on/off, dependencies and when it last changed. Read-only for app users. |
+| `permissions.modules` | The module(s) each permission belongs to. `has_permission()` refuses permissions whose modules are all off — for every user, including the Super Administrator — so RLS, functions and menus follow automatically. |
+| `set_module_enabled(code, on, note)` | Backend only (SQL editor / service role); refuses calls from signed-in app users and checks dependencies. |
+| `module_enabled(code)`, `require_module(code)`, `enabled_modules()` | Checks used by functions and the app. |
