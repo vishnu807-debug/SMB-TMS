@@ -30,8 +30,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <div className="flex min-h-screen">
       <Sidebar groups={groups} />
       <div className="flex min-w-0 flex-1 flex-col">
-        <TopBar user={user} unread={count ?? 0} />
-        <main className="flex-1 p-6 lg:p-8">
+        <TopBar user={user} unread={count ?? 0} groups={groups} />
+        <main className="flex-1 p-4 sm:p-6 lg:p-8">
           {closed ? (
             <div className="mx-auto mt-16 max-w-md text-center">
               <PackageX className="mx-auto size-10 text-slate-400" />

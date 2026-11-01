@@ -19,7 +19,7 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
   const user = await requirePermission("invoice.view");
   const supabase = await createClient();
   const [{ data: inv }, { data: lines }, { data: allocs }, { data: credits }, { data: tx }, { data: taxCodes }, { data: terms }, { data: settings }] = await Promise.all([
-    supabase.from("customer_invoices").select("*, so:sales_orders(id, doc_no), orig:customer_invoices!customer_invoices_credit_for_invoice_id_fkey(id, doc_no), pterm:payment_terms(name)").eq("id", id).maybeSingle(),
+    supabase.from("customer_invoices").select("*, so:sales_orders(id, doc_no), orig:credit_for_invoice_id(id, doc_no), pterm:payment_terms(name)").eq("id", id).maybeSingle(),
     supabase.from("customer_invoice_lines").select("*, dnl:delivery_note_lines(id, qty, qty_invoiced, note:delivery_notes(id, doc_no))").eq("invoice_id", id).order("line_no"),
     supabase.from("customer_payment_allocations").select("amount, is_reversed, payment:customer_payments(id, doc_no, payment_date, method, status)").eq("invoice_id", id),
     supabase.from("customer_invoices").select("id, doc_no, invoice_date, total, status").eq("credit_for_invoice_id", id).order("created_at"),
@@ -83,7 +83,7 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
                 {(lines ?? []).map((l: any) => (
                   <TR key={l.id}>
                     <TD className="text-slate-400">{l.line_no}</TD>
-                    <TD>{l.description}{l.dnl?.note && <p className="text-xs text-slate-500">Delivered on <Link href={`/logistics/deliveries/${l.dnl.note.id}`} className="hover:underline">{l.dnl.note.doc_no}</Link></p>}</TD>
+                    <TD>{l.description}{l.dnl?.note && !String(l.description).includes(l.dnl.note.doc_no) && <p className="text-xs text-slate-500">Delivered on <Link href={`/logistics/deliveries/${l.dnl.note.id}`} className="hover:underline">{l.dnl.note.doc_no}</Link></p>}</TD>
                     <TD numeric>{formatQty(l.qty)} <span className="text-xs text-slate-400">{l.uom_code}</span></TD>
                     <TD numeric>{formatMoney(l.unit_price)}</TD>
                     <TD numeric>{Number(l.discount_pct) ? `${Number(l.discount_pct)}%` : "—"}</TD>

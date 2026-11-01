@@ -12,7 +12,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   if (!user.permissions.has("invoice.view")) return new NextResponse("Forbidden", { status: 403 });
   const supabase = await createClient();
   const [{ data: inv }, { data: lines }, { data: company }] = await Promise.all([
-    supabase.from("customer_invoices").select("*, so:sales_orders(doc_no), pterm:payment_terms(name), orig:customer_invoices!customer_invoices_credit_for_invoice_id_fkey(doc_no, invoice_date)").eq("id", id).maybeSingle(),
+    supabase.from("customer_invoices").select("*, so:sales_orders(doc_no), pterm:payment_terms(name), orig:credit_for_invoice_id(doc_no, invoice_date)").eq("id", id).maybeSingle(),
     supabase.from("customer_invoice_lines").select("*, product:products(sku)").eq("invoice_id", id).order("line_no"),
     supabase.from("company_settings").select("*").single(),
   ]);

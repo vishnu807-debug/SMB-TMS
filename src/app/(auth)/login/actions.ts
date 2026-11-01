@@ -33,14 +33,15 @@ export async function signIn(_prev: LoginState, formData: FormData): Promise<Log
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  const { data: signedIn, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) {
     if (admin) await admin.rpc("log_auth_event", { p_user: null, p_email: email, p_type: "sign_in_failed", p_ip: info.ip, p_user_agent: info.userAgent, p_details: { reason: error.code ?? "invalid" } });
     // Same message for unknown email and wrong password, so accounts can't be probed.
     return { error: "Incorrect email or password." };
   }
 
-  const { data: profile } = await supabase.from("profiles").select("is_active").single();
+  // Filter by id: managers can read other users' profiles too.
+  const { data: profile } = await supabase.from("profiles").select("is_active").eq("id", signedIn.user.id).maybeSingle();
   if (!profile?.is_active) {
     await supabase.auth.signOut();
     return { error: "Your account is inactive. Please contact the administrator." };

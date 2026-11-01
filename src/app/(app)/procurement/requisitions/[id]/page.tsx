@@ -46,7 +46,7 @@ export default async function RequisitionPage({ params }: { params: Promise<{ id
   return (
     <>
       <PageHeader title={<span className="flex items-center gap-3">{r.doc_no} <StatusBadge status={r.status} /></span>}
-        description={<>{humanize(r.source)}{r.sales_order && <> · for <Link href={`/sales-orders/${r.sales_order.id}`} className="text-navy-700 hover:underline">{r.sales_order.doc_no}</Link> ({r.sales_order.customer?.name})</>}
+        description={<>{humanize(r.source)}{r.sales_order && <> · for <Link href={`/sales-orders/${r.sales_order.id}`} className="text-navy-700 hover:underline">{r.sales_order.doc_no}</Link> {r.sales_order.customer?.name && <>({r.sales_order.customer?.name})</>}</>}
           {r.required_date && <> · required by {formatDate(r.required_date)}</>}</>}
         back={{ href: "/procurement?tab=requisitions", label: "Requisitions" }}
         actions={mayPo && anyOpen && <>

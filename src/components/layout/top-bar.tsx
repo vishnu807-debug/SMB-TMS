@@ -1,12 +1,15 @@
 import Link from "next/link";
 import { Bell, LogOut } from "lucide-react";
 import type { CurrentUser } from "@/lib/auth/session";
+import type { NavGroup } from "@/lib/navigation";
+import { MobileNav } from "./sidebar";
 
-export function TopBar({ user, unread }: { user: CurrentUser; unread: number }) {
+export function TopBar({ user, unread, groups }: { user: CurrentUser; unread: number; groups: NavGroup[] }) {
   const initials = user.fullName.split(/\s+/).map((p) => p[0]).slice(0, 2).join("").toUpperCase();
   return (
-    <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-slate-200 bg-white/95 px-6 backdrop-blur">
-      <p className="text-sm text-slate-500">
+    <header className="sticky top-0 z-20 flex h-16 items-center justify-between gap-3 border-b border-slate-200 bg-white/95 px-4 backdrop-blur sm:px-6">
+      <MobileNav groups={groups} />
+      <p className="hidden flex-1 text-sm text-slate-500 sm:block">
         {new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Dubai" })}
       </p>
       <div className="flex items-center gap-4">
