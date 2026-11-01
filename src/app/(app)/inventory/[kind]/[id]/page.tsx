@@ -23,7 +23,7 @@ export default async function DocPage({ params }: { params: Promise<{ kind: stri
 
   const docSelect = kind === "transfers"
     ? "*, from:warehouses!stock_transfers_from_warehouse_id_fkey(code, name), to:warehouses!stock_transfers_to_warehouse_id_fkey(code, name)"
-    : `*, warehouse:warehouses(code, name)${kind === "receipts" || kind === "issues" ? ", supplier:suppliers(name, code)" : ""}`;
+    : `*, warehouse:warehouses(code, name)${kind === "receipts" || kind === "issues" ? ", supplier:suppliers(name, code)" : ""}${kind === "receipts" ? ", po:purchase_orders(id, doc_no)" : ""}`;
   const [{ data: doc }, { data: lines }, { data: moves }, { data: approval }] = await Promise.all([
     supabase.from(cfg.table).select(docSelect).eq("id", id).maybeSingle(),
     supabase.from(cfg.linesTable).select("*, product:products(id, sku, name, uom:units_of_measure(code))").eq(cfg.parentKey, id).order("line_no"),
@@ -62,6 +62,7 @@ export default async function DocPage({ params }: { params: Promise<{ kind: stri
     ...(kind === "transfers"
       ? [["From", `${d.from?.name} (${d.from?.code})`], ["To", `${d.to?.name} (${d.to?.code})`]] as [string, string][]
       : [["Warehouse", `${d.warehouse?.name} (${d.warehouse?.code})`]] as [string, string][]),
+    ...(kind === "receipts" && d.po ? [["Purchase order", <Link key="po" href={`/purchase-orders/${d.po.id}`} className="font-mono text-navy-800 hover:underline">{d.po.doc_no}</Link>]] as [string, React.ReactNode][] : []),
     ...(kind === "receipts" ? [["Supplier", d.supplier?.name ?? "—"], ["Supplier reference", d.supplier_reference ?? "—"],
       ["Currency", d.currency_code + (d.exchange_rate !== 1 ? ` @ ${d.exchange_rate}` : "")]] as [string, string][] : []),
     ...(kind === "issues" ? [["Type", humanize(d.issue_type)], ["Issued to", d.supplier?.name ?? d.issued_to ?? "—"], ["Reference", d.reference ?? "—"]] as [string, string][] : []),

@@ -34,8 +34,9 @@ export const NAVIGATION: NavGroup[] = [
   {
     label: "Operations",
     items: [
-      { label: "Procurement", href: "/procurement", icon: "ClipboardList", permission: ["purchase_requisition.manage"], ready: false },
-      { label: "Purchase Orders", href: "/purchase-orders", icon: "Truck", permission: ["purchase_order.view"], ready: false },
+      { label: "Procurement", href: "/procurement", icon: "ClipboardList", permission: ["purchase_requisition.manage"], ready: true },
+      { label: "Purchase Orders", href: "/purchase-orders", icon: "Truck", permission: ["purchase_order.view"], ready: true },
+      { label: "Suppliers", href: "/suppliers", icon: "Factory", permission: ["supplier.view"], ready: true },
       { label: "Logistics", href: "/logistics", icon: "Route", permission: ["delivery.view"], ready: false },
     ],
   },
@@ -50,7 +51,7 @@ export const NAVIGATION: NavGroup[] = [
   {
     label: "Administration",
     items: [
-      { label: "Approvals", href: "/approvals", icon: "BadgeCheck", permission: ["approval.view", "quotation.approve", "sales_order.approve", "inventory.approve_adjustment"], ready: true },
+      { label: "Approvals", href: "/approvals", icon: "BadgeCheck", permission: ["approval.view", "quotation.approve", "sales_order.approve", "inventory.approve_adjustment", "purchase_order.approve"], ready: true },
       { label: "Reports", href: "/reports", icon: "BarChart3", permission: ["report.sales", "report.inventory"], ready: false },
       { label: "Warehouses", href: "/settings/warehouses", icon: "MapPin", permission: ["warehouse.manage", "inventory.view"], ready: true },
       { label: "User Management", href: "/users", icon: "Users", permission: ["user.view"], ready: true },

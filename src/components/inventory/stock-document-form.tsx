@@ -15,6 +15,8 @@ import { formatQty, humanize } from "@/lib/utils";
 export type DocLine = {
   key: string; product: PickedProduct | null; qty: string; unit_cost: string; unit_cost_base: string;
   mode: "change" | "count"; qty_change: string; counted_qty: string; sales_order_line_id: string; notes: string;
+  /** Receiving against a purchase order: the PO line and what is still due. */
+  purchase_order_line_id?: string; po_remaining?: number; po_label?: string;
 };
 
 export type DocFormLookups = {
@@ -26,7 +28,7 @@ export type DocFormLookups = {
   canViewValuation: boolean;
 };
 
-export type DocFormInitial = { header: Record<string, string | boolean | null>; lines: DocLine[] };
+export type DocFormInitial = { header: Record<string, string | boolean | null>; lines: DocLine[]; purchaseOrder?: { id: string; doc_no: string; supplier: string; currency_code: string } };
 
 const newLine = (): DocLine => ({
   key: crypto.randomUUID(), product: null, qty: "", unit_cost: "", unit_cost_base: "", mode: "change",
@@ -49,6 +51,7 @@ export function StockDocumentForm({ kind, lookups, initial }: { kind: DocKind; l
 
   const set = (k: string, v: any) => setH((x) => ({ ...x, [k]: v }));
   const setLine = (key: string, patch: Partial<DocLine>) => setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
+  const po = initial?.purchaseOrder;
   const sourceWh = kind === "transfers" ? h.from_warehouse_id : h.warehouse_id;
   const productIds = useMemo(() => lines.map((l) => l.product?.id).filter(Boolean) as string[], [lines]);
 
@@ -60,7 +63,7 @@ export function StockDocumentForm({ kind, lookups, initial }: { kind: DocKind; l
 
   // Back-to-back receipt: which customer orders are waiting for this product?
   useEffect(() => {
-    if (kind !== "receipts") return;
+    if (kind !== "receipts" || po) return;
     productIds.filter((id) => !(id in procureOptions)).forEach((id) =>
       openProcureLines(id).then((opts) => setProcureOptions((o) => ({ ...o, [id]: opts }))));
   }, [productIds.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -71,6 +74,7 @@ export function StockDocumentForm({ kind, lookups, initial }: { kind: DocKind; l
     const payload: Record<string, any> = { id: initial?.header.id ?? undefined };
     Object.entries(h).forEach(([k, v]) => { if (k !== "id" && k !== "doc_no") payload[k] = typeof v === "string" ? opt(v.trim()) : v ?? undefined; });
     if (payload.currency_code === lookups.baseCurrency) delete payload.exchange_rate;
+    if (po) { payload.purchase_order_id = po.id; delete payload.currency_code; delete payload.exchange_rate; delete payload.supplier_id; }
     payload.lines = lines.filter((l) => l.product).map((l) => ({
       product_id: l.product!.id,
       notes: opt(l.notes),
@@ -78,7 +82,8 @@ export function StockDocumentForm({ kind, lookups, initial }: { kind: DocKind; l
         ? { mode: l.mode, qty_change: l.mode === "change" ? opt(l.qty_change) : undefined, counted_qty: l.mode === "count" ? opt(l.counted_qty) : undefined,
             unit_cost_base: lookups.canViewValuation ? opt(l.unit_cost_base) : undefined }
         : { qty: opt(l.qty) }),
-      ...(kind === "receipts" ? { unit_cost: opt(l.unit_cost), sales_order_line_id: opt(l.sales_order_line_id) } : {}),
+      ...(kind === "receipts" ? (l.purchase_order_line_id ? { purchase_order_line_id: l.purchase_order_line_id }
+        : { unit_cost: opt(l.unit_cost), sales_order_line_id: opt(l.sales_order_line_id) }) : {}),
     }));
     if (payload.lines.length === 0) return setError("Add at least one item.");
     start(async () => {
@@ -111,7 +116,15 @@ export function StockDocumentForm({ kind, lookups, initial }: { kind: DocKind; l
             <Input id="date" type="date" max={today} value={h[cfg.dateField] ?? today} onChange={(e) => set(cfg.dateField, e.target.value)} />
           </Field>
 
-          {kind === "receipts" && (
+          {kind === "receipts" && po && (
+            <>
+              <Field label="Purchase order"><p className="flex h-9 items-center text-sm font-medium"><Link href={`/purchase-orders/${po.id}`} className="font-mono text-navy-800 hover:underline">{po.doc_no}</Link><span className="ml-2 text-slate-600">{po.supplier}</span></p></Field>
+              <Field label="Supplier delivery note / invoice no." htmlFor="supplier_reference">
+                <Input id="supplier_reference" value={h.supplier_reference ?? ""} onChange={(e) => set("supplier_reference", e.target.value)} maxLength={80} />
+              </Field>
+            </>
+          )}
+          {kind === "receipts" && !po && (
             <>
               <Field label="Supplier" htmlFor="supplier_id">
                 <Select id="supplier_id" value={h.supplier_id ?? ""} onChange={(e) => set("supplier_id", e.target.value)}>
@@ -188,7 +201,7 @@ export function StockDocumentForm({ kind, lookups, initial }: { kind: DocKind; l
       <Card>
         <CardHeader>
           <CardTitle>Items</CardTitle>
-          <Button type="button" variant="outline" size="sm" onClick={() => setLines([...lines, newLine()])}><Plus /> Add item</Button>
+          {!po && <Button type="button" variant="outline" size="sm" onClick={() => setLines([...lines, newLine()])}><Plus /> Add item</Button>}
         </CardHeader>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -216,7 +229,7 @@ export function StockDocumentForm({ kind, lookups, initial }: { kind: DocKind; l
                 return (
                   <tr key={l.key} className="align-top">
                     <td className="px-3 py-2 pt-4 text-slate-400">{i + 1}</td>
-                    <td className="px-3 py-2"><ProductPicker value={l.product} onChange={(p) => setLine(l.key, { product: p, sales_order_line_id: "" })} /></td>
+                    <td className="px-3 py-2"><ProductPicker value={l.product} disabled={!!l.purchase_order_line_id} onChange={(p) => setLine(l.key, { product: p, sales_order_line_id: "" })} /></td>
                     {kind !== "receipts" && (
                       <td className="whitespace-nowrap px-3 py-2 pt-4 text-right tabular-nums text-slate-600">
                         {l.product ? (a ? <>{formatQty(a.available)} <span className="text-slate-400">/ {formatQty(a.physical)}</span></> : "0") : "—"}
@@ -246,19 +259,22 @@ export function StockDocumentForm({ kind, lookups, initial }: { kind: DocKind; l
                     ) : (
                       <td className="px-3 py-2">
                         <Input type="number" step="0.001" min="0" className="text-right" value={l.qty} onChange={(e) => setLine(l.key, { qty: e.target.value })} />
+                        {l.po_remaining != null && <p className="mt-1 text-right text-xs text-slate-500">{formatQty(l.po_remaining)} due</p>}
                       </td>
                     )}
                     {kind === "receipts" && (
                       <td className="px-3 py-2">
-                        <Input type="number" step="0.0001" min="0" className="text-right" value={l.unit_cost} onChange={(e) => setLine(l.key, { unit_cost: e.target.value })} />
+                        <Input type="number" step="0.0001" min="0" className="text-right" value={l.unit_cost} disabled={!!l.purchase_order_line_id}
+                          title={l.purchase_order_line_id ? "Cost comes from the purchase order" : undefined} onChange={(e) => setLine(l.key, { unit_cost: e.target.value })} />
                       </td>
                     )}
                     {kind === "receipts" && (
                       <td className="px-3 py-2">
+                        {l.purchase_order_line_id ? <p className="pt-2 text-xs text-slate-600">{l.po_label ?? "Stock"}</p> :
                         <Select value={l.sales_order_line_id} onChange={(e) => setLine(l.key, { sales_order_line_id: e.target.value })} disabled={!l.product}>
                           <option value="">Stock (no order)</option>
                           {(l.product ? procureOptions[l.product.id] ?? [] : []).map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
-                        </Select>
+                        </Select>}
                       </td>
                     )}
                     <td className="px-3 py-2"><Input value={l.notes} onChange={(e) => setLine(l.key, { notes: e.target.value })} maxLength={500} /></td>
@@ -274,7 +290,8 @@ export function StockDocumentForm({ kind, lookups, initial }: { kind: DocKind; l
         </div>
         {kind === "receipts" && (
           <p className="border-t border-slate-100 px-5 py-3 text-xs text-slate-500">
-            Linking an item to a customer order reserves the received quantity for that order immediately.
+            {po ? "Enter what actually arrived; remove lines that did not come. Items bought for a customer order are reserved for it on posting."
+              : "Linking an item to a customer order reserves the received quantity for that order immediately."}
           </p>
         )}
         {kind === "adjustments" && (

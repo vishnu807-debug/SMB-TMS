@@ -670,6 +670,9 @@ begin
     perform public.notify_user(a.requested_by,
       'Stock adjustment ' || a.doc_no || case when p_approve then ' approved and posted' else ' rejected' end,
       p_comment, '/inventory/adjustments/' || a.doc_id);
+  else
+    -- Purchase orders, supplier bills, expenses: handled by later modules.
+    perform public.decide_approval_extension(a, p_approve, p_comment);
   end if;
 end $$;
 

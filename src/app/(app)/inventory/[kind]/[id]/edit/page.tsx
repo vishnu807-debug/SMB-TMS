@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { DOC_KINDS, isDocKind } from "@/lib/inventory-config";
 import { PageHeader } from "@/components/layout/page-header";
 import { StockDocumentForm, type DocLine } from "@/components/inventory/stock-document-form";
-import { loadDocLookups } from "../../../lookups";
+import { loadDocLookups, loadPoForReceipt } from "../../../lookups";
 
 export const metadata: Metadata = { title: "Edit stock document" };
 
@@ -30,11 +30,20 @@ export default async function EditDocPage({ params }: { params: Promise<{ kind: 
     qty: l.qty?.toString() ?? "", unit_cost: l.unit_cost?.toString() ?? "", unit_cost_base: l.unit_cost_base?.toString() ?? "",
     mode: l.mode ?? "change", qty_change: l.qty_change?.toString() ?? "", counted_qty: l.counted_qty?.toString() ?? "",
     sales_order_line_id: l.sales_order_line_id ?? "", notes: l.notes ?? "",
+    purchase_order_line_id: l.purchase_order_line_id ?? undefined,
   }));
+  let purchaseOrder;
+  if (kind === "receipts" && doc.purchase_order_id) {
+    const r = await loadPoForReceipt(doc.purchase_order_id, id);
+    if (r) {
+      purchaseOrder = { id: r.po.id, doc_no: r.po.doc_no, supplier: r.po.supplier, currency_code: r.po.currency_code };
+      initialLines.forEach((l) => { const pl = r.lines.find((x) => x.id === l.purchase_order_line_id); if (pl) { l.po_remaining = pl.remaining; l.po_label = pl.label; } });
+    }
+  }
   return (
     <>
       <PageHeader title={`Edit ${doc.doc_no}`} back={{ href: `/inventory/${kind}/${id}`, label: doc.doc_no }} />
-      <StockDocumentForm kind={kind} lookups={await loadDocLookups(user)} initial={{ header, lines: initialLines }} />
+      <StockDocumentForm kind={kind} lookups={await loadDocLookups(user)} initial={{ header, lines: initialLines, purchaseOrder }} />
     </>
   );
 }

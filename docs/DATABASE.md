@@ -13,6 +13,8 @@ Migrations run in file order. Gaps in the numbering are reserved for modules sti
 | `0008_sales_crm_support` | Quoting defaults (cost hidden by role), customer credit summary, reopen enquiry; locks down cost-revealing helpers |
 | `0012_security` | Row Level Security policies and grants |
 | `0013_dashboards` | Sales dashboard function |
+| `0014_user_management` | Per-user permission grants/denies, session revocation, auth events, user admin functions |
+| `0015_procurement` | Supplier contacts, supplier quotations, purchase orders with approval, receiving against POs, incoming stock from POs |
 
 ## Products
 
@@ -42,7 +44,7 @@ Migrations run in file order. Gaps in the numbering are reserved for modules sti
 | `v_inventory_position` | Product × warehouse: physical, reserved, available, incoming, average cost and value (cost columns only with valuation permission). |
 | `v_product_inventory` | Product totals across warehouses plus the below-minimum flag. |
 | `v_stock_movements` | Movement history with cost columns hidden from users without valuation permission. |
-| `v_stock_incoming` | Incoming stock (transfers in transit; open purchase orders will be added by the procurement module). |
+| `v_stock_incoming` | Incoming stock: transfers in transit plus the undelivered quantity on approved purchase orders. |
 
 ### Key functions
 `save_product`, `set_product_active`, `delete_product_category`, `save_goods_receipt` / `post_goods_receipt`,
@@ -65,3 +67,22 @@ Internal helpers (`stock_post_movement`, `stock_reserve`, `stock_release`, `stoc
 | `sales_orders` / `sales_order_lines` | Orders converted from quotations. Each line has its fulfilment mode and generated stock, procurement and delivery statuses driven by its quantity counters. |
 | `sales_order_line_costs` | Internal cost per order line (for margin). |
 | `purchase_requisitions` / `purchase_requisition_lines` | Raised automatically for procure lines on confirmation; worked by procurement. |
+
+## Procurement
+
+| Table / view | Purpose |
+| --- | --- |
+| `suppliers` / `supplier_contacts` | Supplier master (code SUP-…, TRN, licence, category, address, bank details, currency, terms, lead time, status) and its people. Written through `save_supplier()`. |
+| `purchase_requisitions` / `purchase_requisition_lines` | What needs buying: raised automatically for customer orders, from minimum stock levels (`create_reorder_requisition`) or by hand (`create_requisition`). `qty_ordered` counts approved PO quantities. |
+| `supplier_quotations` / `supplier_quotation_lines` | Prices received from suppliers, usually against a requisition so they can be compared. Selecting one rejects the others and updates the supplier price list. |
+| `purchase_orders` / `purchase_order_lines` | Orders to suppliers: draft → pending approval (above AED 25,000, configurable) → approved → sent → partially received → received, or closed short / cancelled. Totals are computed by the database; lines are frozen after draft. Each line tracks `qty_received` and `qty_billed`. |
+| `v_open_requisition_lines` | Requisition lines still to be ordered, with customer order and suggested supplier. |
+
+Receiving: a goods receipt against a PO takes its cost and currency from the PO, cannot exceed the outstanding
+quantity (other draft receipts included), updates the PO status and, for customer-order items, marks the sales
+order line received and reserves the stock for it.
+
+### Key functions
+`save_supplier`, `create_requisition`, `create_reorder_requisition`, `cancel_requisition_line`, `save_supplier_quotation`,
+`select_supplier_quotation`, `save_purchase_order`, `submit_purchase_order` (+ `decide_approval`), `reopen_purchase_order`,
+`mark_purchase_order_sent`, `cancel_purchase_order`, `close_purchase_order`, `save_goods_receipt` / `post_goods_receipt`.

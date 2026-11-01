@@ -17,13 +17,14 @@ const line = z.object({
   qty_change: num.optional(),
   counted_qty: num.min(0).optional(),
   sales_order_line_id: uuid.optional(),
+  purchase_order_line_id: uuid.optional(),
   notes: z.string().max(500).optional(),
 });
 
 const payloads: Record<DocKind, z.ZodTypeAny> = {
   receipts: z.object({
-    id: uuid.optional(), warehouse_id: uuid, supplier_id: uuid.optional(), receipt_date: z.string().optional(),
-    supplier_reference: z.string().max(80).optional(), currency_code: z.string().length(3), exchange_rate: num.positive().optional(),
+    id: uuid.optional(), warehouse_id: uuid, supplier_id: uuid.optional(), purchase_order_id: uuid.optional(), receipt_date: z.string().optional(),
+    supplier_reference: z.string().max(80).optional(), currency_code: z.string().length(3).optional(), exchange_rate: num.positive().optional(),
     notes: z.string().max(2000).optional(), lines: z.array(line).min(1, "Add at least one item."),
   }),
   issues: z.object({
@@ -87,6 +88,7 @@ export async function runDocumentAction(kind: string, id: string, action: string
   revalidatePath(`/inventory/${kind}/${id}`);
   revalidatePath(`/inventory/${kind}`);
   revalidatePath("/inventory");
+  revalidatePath("/purchase-orders");
   return { ok: true };
 }
 
