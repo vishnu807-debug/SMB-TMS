@@ -14,6 +14,7 @@ Migrations run in file order. Gaps in the numbering are reserved for modules sti
 | `0012_security` | Row Level Security policies and grants |
 | `0013_dashboards` | Sales dashboard function |
 | `0014_user_management` | Per-user permission grants/denies, session revocation, auth events, user admin functions |
+| `0016_logistics` | Shipments, delivery notes, dispatch from reservations, proof of delivery, order fulfilment roll-up |
 | `0015_procurement` | Supplier contacts, supplier quotations, purchase orders with approval, receiving against POs, incoming stock from POs |
 
 ## Products
@@ -86,3 +87,19 @@ order line received and reserves the stock for it.
 `save_supplier`, `create_requisition`, `create_reorder_requisition`, `cancel_requisition_line`, `save_supplier_quotation`,
 `select_supplier_quotation`, `save_purchase_order`, `submit_purchase_order` (+ `decide_approval`), `reopen_purchase_order`,
 `mark_purchase_order_sent`, `cancel_purchase_order`, `close_purchase_order`, `save_goods_receipt` / `post_goods_receipt`.
+
+## Logistics
+
+| Table / view | Purpose |
+| --- | --- |
+| `delivery_notes` / `delivery_note_lines` | Deliveries against a confirmed sales order from one warehouse. Draft → dispatched (stock issued) → delivered (proof of delivery: received by, time, remarks, signed note in the private `delivery-pod` bucket); only drafts can be cancelled. Lines track `qty_invoiced` for invoicing. |
+| `shipments` | A vehicle / courier trip carrying several delivery notes. Dispatching the shipment dispatches its notes; it completes when every note is delivered. |
+| `v_deliverable_lines` | Order lines still to deliver, with the quantity reserved per warehouse and ready now. |
+
+Dispatch rules: a delivery can only take stock **reserved for that order line in that warehouse** (non-stock items
+excepted). Dispatch consumes the reservation and posts an `issue` movement that reduces on-hand and reserved
+together, increases the order line's `qty_delivered`, and rolls the order up to *partially fulfilled* / *fulfilled*.
+
+### Key functions
+`save_delivery_note`, `dispatch_delivery_note`, `confirm_delivery`, `cancel_delivery_note`, `save_shipment`,
+`dispatch_shipment`, `cancel_shipment`.

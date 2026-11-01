@@ -12,7 +12,8 @@ Next.js 15 + Supabase (PostgreSQL, Auth, Storage) CRM and mini-ERP for SMP Gener
 | **Sales & CRM** (customers, enquiries, follow-ups, quotations with PDF, sales orders, approvals, dashboard) | ✅ tested | All screens | **Done** |
 | **Authentication & user management** (12 roles, per-user grants/denies, sessions, deactivation, audit) | ✅ tested | Users, roles matrix, profile, password reset, audit log | **Done** |
 | **Procurement** (suppliers, requisitions, supplier quote comparison, purchase orders with approval & PDF, receiving against POs) | ✅ tested | Procurement, purchase orders, suppliers | **Done** |
-| Logistics, finance | — | — | Next |
+| **Logistics** (delivery notes from reserved stock, partial deliveries, shipments, dispatch, proof of delivery, PDF) | ✅ tested | Logistics, delivery notes, shipments | **Done** |
+| Finance (invoices, payments, supplier bills, expenses, e-invoicing) | — | — | Next |
 
 Sidebar items for unbuilt modules are shown as "Soon" and are not clickable.
 

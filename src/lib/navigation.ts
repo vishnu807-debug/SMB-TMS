@@ -37,7 +37,7 @@ export const NAVIGATION: NavGroup[] = [
       { label: "Procurement", href: "/procurement", icon: "ClipboardList", permission: ["purchase_requisition.manage"], ready: true },
       { label: "Purchase Orders", href: "/purchase-orders", icon: "Truck", permission: ["purchase_order.view"], ready: true },
       { label: "Suppliers", href: "/suppliers", icon: "Factory", permission: ["supplier.view"], ready: true },
-      { label: "Logistics", href: "/logistics", icon: "Route", permission: ["delivery.view"], ready: false },
+      { label: "Logistics", href: "/logistics", icon: "Route", permission: ["delivery.view"], ready: true },
     ],
   },
   {

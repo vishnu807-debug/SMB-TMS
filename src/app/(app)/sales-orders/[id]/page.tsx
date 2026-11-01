@@ -1,6 +1,8 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { Truck } from "lucide-react";
+import { buttonVariants } from "@/components/ui/button";
 import { requirePermission, can } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { loadActivities } from "@/lib/activities";
@@ -39,6 +41,9 @@ export default async function SalesOrderPage({ params }: { params: Promise<{ id:
     supabase.from("warehouses").select("id, code, name").eq("is_active", true).order("code"),
     loadActivities({ sales_order_id: id }),
   ]);
+  const { data: deliveries } = can(user, "delivery.view")
+    ? await supabase.from("delivery_notes").select("id, doc_no, delivery_date, status, warehouse:warehouses(code), lines:delivery_note_lines(qty)").eq("sales_order_id", id).order("created_at")
+    : { data: [] as any[] };
   const lineIds = new Set((lines ?? []).map((l) => l.id));
   const resByLine = new Map<string, string[]>();
   (reservations ?? []).filter((r: any) => lineIds.has(r.sales_order_line_id)).forEach((r: any) => {
@@ -67,7 +72,11 @@ export default async function SalesOrderPage({ params }: { params: Promise<{ id:
           <Badge tone="navy">{modes.size === 2 ? "Mixed fulfilment" : modes.has("procure") ? "Direct procurement" : "From stock"}</Badge></span>}
         description={<span><Link href={`/customers/${so.customer.id}`} className="text-navy-700 hover:underline">{so.customer.name}</Link>
           {so.customer_po_ref && ` · Customer PO ${so.customer_po_ref}`}{so.quotation && <> · from <Link href={`/quotations/${so.quotation.id}`} className="text-navy-700 hover:underline">{so.quotation.doc_no}</Link></>}</span>}
-        actions={<OrderActions id={so.id} actions={actions} />}
+        actions={<>
+          {["confirmed", "partially_fulfilled"].includes(so.status) && can(user, "delivery.manage") &&
+            <Link href={`/logistics/deliveries/new?order=${so.id}`} className={buttonVariants({ variant: "outline" })}><Truck /> Delivery note</Link>}
+          <OrderActions id={so.id} actions={actions} />
+        </>}
       />
       {pending && <Alert tone="warning" className="mb-4">Awaiting approval: {pending.reasons.join("; ")}. Nothing has been reserved yet.</Alert>}
       {so.status === "on_hold" && <Alert tone="warning" className="mb-4">On hold: {so.hold_reason}</Alert>}
@@ -139,6 +148,21 @@ export default async function SalesOrderPage({ params }: { params: Promise<{ id:
               ].map(([k, v]) => <div key={k as string}><dt className="text-xs font-medium uppercase tracking-wide text-slate-500">{k}</dt><dd className="mt-0.5 text-slate-900">{v}</dd></div>)}
             </CardContent>
           </Card>
+          {(deliveries ?? []).length > 0 && (
+            <Card>
+              <CardHeader><CardTitle>Deliveries</CardTitle></CardHeader>
+              <Table>
+                <THead><TR><TH>Delivery note</TH><TH>Date</TH><TH>From</TH><TH numeric>Qty</TH><TH>Status</TH></TR></THead>
+                <TBody>
+                  {(deliveries ?? []).map((d: any) => (
+                    <TR key={d.id}><TD><Link href={`/logistics/deliveries/${d.id}`} className="font-mono text-xs font-semibold text-navy-800 hover:underline">{d.doc_no}</Link></TD>
+                      <TD>{formatDate(d.delivery_date)}</TD><TD>{d.warehouse?.code}</TD>
+                      <TD numeric>{formatQty(d.lines.reduce((a: number, x: any) => a + Number(x.qty), 0))}</TD><TD><StatusBadge status={d.status} /></TD></TR>
+                  ))}
+                </TBody>
+              </Table>
+            </Card>
+          )}
           {(reqs ?? []).length > 0 && (
             <Card>
               <CardHeader><CardTitle>Purchase requisitions</CardTitle></CardHeader>
@@ -146,7 +170,7 @@ export default async function SalesOrderPage({ params }: { params: Promise<{ id:
                 <THead><TR><TH>Requisition</TH><TH>Raised</TH><TH numeric>Lines</TH><TH>Status</TH></TR></THead>
                 <TBody>
                   {(reqs ?? []).map((r: any) => (
-                    <TR key={r.id}><TD className="font-mono text-xs">{r.doc_no}</TD><TD>{formatDateTime(r.created_at)}</TD>
+                    <TR key={r.id}><TD className="font-mono text-xs">{can(user, "purchase_requisition.manage") ? <Link href={`/procurement/requisitions/${r.id}`} className="text-navy-800 hover:underline">{r.doc_no}</Link> : r.doc_no}</TD><TD>{formatDateTime(r.created_at)}</TD>
                       <TD numeric>{r.lines.filter((x: any) => !x.is_cancelled).length}</TD><TD><StatusBadge status={r.status} /></TD></TR>
                   ))}
                 </TBody>

@@ -30,6 +30,9 @@ const statusTone: Record<string, keyof typeof tones> = {
   // leads
   new: "blue", contacted: "navy", qualified: "navy", quoted: "amber", won: "green",
   blocked: "red",
+  // logistics & procurement
+  dispatched: "blue", planned: "slate", completed: "green", selected: "green",
+  open: "amber",
 };
 
 export function StatusBadge({ status }: { status: string }) {
