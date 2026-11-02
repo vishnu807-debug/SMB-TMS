@@ -52,7 +52,7 @@ jobs:
         run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
 
       - name: Migrations to apply
-        run: supabase db push --linked --dry-run
+        run: supabase db push --remote --dry-run
 
       - name: Apply
-        run: supabase db push --linked
+        run: supabase db push --remote --yes
