@@ -239,6 +239,44 @@ With Sales and Procurement but no Inventory:
 
 ---
 
+## Bulk import (customers and enquiries)
+
+**Customers → Import** and **Leads & Enquiries → Import** accept Excel (.xlsx) or CSV files of up to 2,000 rows.
+
+1. Download the Excel or CSV template. The Excel template has an *Instructions* sheet describing every column.
+2. Upload the file. Every row is checked in the database before anything is saved:
+   * required fields, formats (TRN, email, dates, numbers), and values that must exist (currency, payment terms, users);
+   * duplicates against existing customers (same TRN, email, phone, or company name, including contact emails and phones) and duplicates inside the file;
+   * for enquiries, open enquiries with the same title for the same customer.
+3. For enquiries whose customer is not found, choose per company: link to an existing customer, create the customer, keep it as a prospect, or skip the rows. Then re-check.
+4. Import the valid rows. Rows with problems are not imported; **Error report** downloads them with the reasons, so you can fix and re-import them.
+
+A file can be imported only once (re-uploading starts a new import, and the duplicate checks then catch rows already imported).
+Each import is recorded with its file name, row counts and the user who ran it.
+
+## Quotations: documents, new products and customer confirmation
+
+**Documents.** PDF, DOC and DOCX files (25 MB max) can be attached to a quotation, either to the whole quotation or to one item.
+Catalogue datasheets of the products on the quotation are offered for reuse with a tick box. Files are kept in the private
+`quotation-docs` storage bucket, which the migration creates. Only people who can see the quotation can open them.
+**Download for customer** gives a ZIP with the quotation PDF plus every document ticked *For customer*, and the PDF lists them under *Enclosures*.
+
+**New products.** On any item line, choose **New product** instead of a catalogue product to enter the name, brand,
+model/SKU, unit, specifications, price, discount, VAT and datasheets. These items are stored separately and **do not
+appear in the product catalogue**.
+
+**Workflow.**
+1. Submit and send the quotation. It then shows *awaiting customer confirmation*.
+2. When the customer accepts, use **Customer confirmed** to record the date, method (PO, signed quotation, email…),
+   reference and, optionally, the PO file. The customer's PO number is carried to the sales order.
+3. Users with the *Create and edit products* permission are notified. Under **Products → New from Quotations** they
+   either **add the item to the catalogue** or **link it to an existing product**. Possible matches by name, model or SKU are shown.
+   Creating a product with the same name or model as an existing one is refused, and each item can be added or linked only once.
+4. Once every new item is in the catalogue, the quotation can be converted to a sales order.
+
+Rejected, lost, expired or unconfirmed quotations never add products. The quotation keeps its original description and price.
+The product page shows which quotation it came from and who entered and approved it.
+
 ## UAE e-invoicing
 
 The system produces each posted invoice and credit note as a **Peppol PINT AE** (UBL 2.1) document and sends it to your

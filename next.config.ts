@@ -7,7 +7,7 @@ const nextConfig: NextConfig = {
   // built-in standard fonts which it loads on start-up). File tracing cannot see these
   // dynamic reads, so list them explicitly or they are missing on Vercel.
   outputFileTracingIncludes: Object.fromEntries(
-    ["/quotations/[id]/pdf", "/purchase-orders/[id]/pdf", "/logistics/deliveries/[id]/pdf", "/invoices/[id]/pdf"].map((route) => [
+    ["/quotations/[id]/pdf", "/quotations/[id]/package", "/purchase-orders/[id]/pdf", "/logistics/deliveries/[id]/pdf", "/invoices/[id]/pdf"].map((route) => [
       route,
       ["./node_modules/@fontsource/inter/files/inter-latin-{400,700}-normal.woff", "./node_modules/pdfkit/js/standard-fonts/**/*"],
     ]),

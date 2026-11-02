@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, Upload } from "lucide-react";
 import { requirePermission, can } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/layout/page-header";
@@ -44,7 +44,10 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   return (
     <>
       <PageHeader title="Leads & enquiries" description="Register customer enquiries, follow them up and track the opportunity through to a quotation."
-        actions={can(user, "lead.create") && <Link href="/leads/new" className={buttonVariants()}><Plus /> Register enquiry</Link>} />
+        actions={can(user, "lead.create") && <>
+          <Link href="/leads/import" className={buttonVariants({ variant: "outline" })}><Upload /> Import</Link>
+          <Link href="/leads/new" className={buttonVariants()}><Plus /> Register enquiry</Link>
+        </>} />
 
       <div className="mb-6 grid grid-cols-3 gap-3 lg:grid-cols-6">
         {STAGES.map((s) => (

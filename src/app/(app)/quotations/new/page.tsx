@@ -3,6 +3,7 @@ import { requirePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/layout/page-header";
 import { QuotationEditor, type QuoteLine } from "@/components/quotations/quotation-editor";
+import { blankNewProduct } from "@/lib/quote-lines";
 import { loadEditorData } from "../editor-data";
 
 export const metadata: Metadata = { title: "New quotation" };
@@ -11,6 +12,7 @@ export default async function NewQuotationPage({ searchParams }: { searchParams:
   const user = await requirePermission("quotation.create");
   const sp = await searchParams;
   const data = await loadEditorData(user);
+  const pcs = data.uoms.find((u) => u.code === "PCS")?.id ?? data.uoms[0]?.id ?? "";
   const supabase = await createClient();
   let initial: { header: Record<string, any>; lines: QuoteLine[] } | undefined;
   const today = new Date().toISOString().slice(0, 10);
@@ -26,11 +28,14 @@ export default async function NewQuotationPage({ searchParams }: { searchParams:
     if (lead) {
       initial = {
         header: { ...base, customer_id: lead.customer_id, lead_id: lead.id, subject: lead.title },
-        lines: (lead.items ?? []).filter((i: any) => i.product).map((i: any) => ({
-          key: crypto.randomUUID(), product: { id: i.product.id, sku: i.product.sku, name: i.product.name, uom: i.product.uom?.code ?? "" },
+        // Requirement lines without a catalogue product become new (quotation-only) products.
+        lines: (lead.items ?? []).map((i: any): QuoteLine => ({
+          key: crypto.randomUUID(), kind: i.product ? "catalogue" : "new",
+          product: i.product ? { id: i.product.id, sku: i.product.sku, name: i.product.name, uom: i.product.uom?.code ?? "" } : null,
+          np: { ...blankNewProduct(pcs), name: i.product ? "" : i.description },
           description: i.description, qty: String(i.qty), unit_price: i.target_price?.toString() ?? "", discount_pct: "0", tax_code_id: "",
-          fulfilment_mode: i.product.item_type === "stock" ? "stock" : "procure", mode_locked: false, lead_time_text: "",
-          unit_cost: "", available: null, item_type: i.product.item_type,
+          fulfilment_mode: i.product?.item_type === "stock" ? "stock" : "procure", mode_locked: false, lead_time_text: "",
+          unit_cost: "", available: null, item_type: i.product?.item_type ?? "non_stock", files: [], reuse: [], attached: [],
         })),
       };
     }

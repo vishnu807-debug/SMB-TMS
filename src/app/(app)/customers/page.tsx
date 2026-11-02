@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, Upload } from "lucide-react";
 import { requirePermission, can } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/layout/page-header";
@@ -34,7 +34,10 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
   return (
     <>
       <PageHeader title="Customers" description={can(user, "customer.view_all") ? `${count ?? 0} customers` : `${count ?? 0} customers assigned to you`}
-        actions={can(user, "customer.create") && <Link href="/customers/new" className={buttonVariants()}><Plus /> New customer</Link>} />
+        actions={can(user, "customer.create") && <>
+          <Link href="/customers/import" className={buttonVariants({ variant: "outline" })}><Upload /> Import</Link>
+          <Link href="/customers/new" className={buttonVariants()}><Plus /> New customer</Link>
+        </>} />
       <Card>
         <form className="flex flex-wrap gap-3 border-b border-slate-200 p-4">
           <div className="relative min-w-[240px] flex-1">

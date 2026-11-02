@@ -6,9 +6,11 @@ export type QuotationPdfData = {
   company: PdfCompany;
   quotation: any;
   lines: any[];
+  /** Names of the documents sent with the quotation. */
+  enclosures?: string[];
 };
 
-function QuotationDoc({ company, quotation: q, lines }: QuotationPdfData) {
+function QuotationDoc({ company, quotation: q, lines, enclosures = [] }: QuotationPdfData) {
   const addr = (a: any) => (a ? [a.line1, a.line2, a.city, a.emirate, a.po_box && `P.O. Box ${a.po_box}`, a.country].filter(Boolean).join(", ") : null);
   const draft = ["draft", "pending_approval", "rejected"].includes(q.status);
   return (
@@ -63,10 +65,13 @@ function QuotationDoc({ company, quotation: q, lines }: QuotationPdfData) {
               <Text style={{ width: COLS.no, color: GREY }}>{l.line_no}</Text>
               <View style={{ flex: 1, paddingRight: 6 }}>
                 <Text>{l.description}</Text>
-                <Text style={[s.muted, { fontSize: 7 }]}>{l.product?.sku}{l.lead_time_text ? `  ·  Lead time: ${l.lead_time_text}` : ""}</Text>
+                <Text style={[s.muted, { fontSize: 7 }]}>{[l.product?.sku, l.qp?.brand, l.qp?.model_no && `Model ${l.qp.model_no}`].filter(Boolean).join("  ·  ")}{l.lead_time_text ? `  ·  Lead time: ${l.lead_time_text}` : ""}</Text>
+                {(l.qp?.technical_specs ?? []).length > 0 && (
+                  <Text style={[s.muted, { fontSize: 7 }]}>{l.qp.technical_specs.map((x: any) => (x.value ? `${x.name}: ${x.value}` : x.name)).join("  ·  ")}</Text>
+                )}
               </View>
               <Text style={{ width: COLS.qty, textAlign: "right" }}>{qty(l.qty)}</Text>
-              <Text style={{ width: COLS.unit, textAlign: "center" }}>{l.product?.uom?.code}</Text>
+              <Text style={{ width: COLS.unit, textAlign: "center" }}>{l.uom?.code ?? l.product?.uom?.code}</Text>
               <Text style={{ width: COLS.price, textAlign: "right" }}>{money(l.unit_price)}</Text>
               <Text style={{ width: COLS.disc, textAlign: "right" }}>{Number(l.discount_pct) ? `${Number(l.discount_pct)}%` : "—"}</Text>
               <Text style={{ width: COLS.vat, textAlign: "right" }}>{Number(l.tax_rate)}%</Text>
@@ -84,6 +89,12 @@ function QuotationDoc({ company, quotation: q, lines }: QuotationPdfData) {
         </View>
 
         {q.notes && <View style={s.section} wrap={false}><Text style={s.h}>Notes</Text><Text>{q.notes}</Text></View>}
+        {enclosures.length > 0 && (
+          <View style={s.section} wrap={false}>
+            <Text style={s.h}>Enclosures</Text>
+            {enclosures.map((e, i) => <Text key={i}>{i + 1}. {e}</Text>)}
+          </View>
+        )}
         {q.terms_conditions && (
           <View style={s.section}>
             <Text style={s.h}>Terms and conditions</Text>

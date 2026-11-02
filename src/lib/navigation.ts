@@ -25,6 +25,7 @@ export const NAVIGATION: NavGroup[] = [
     items: [
       { label: "Products", href: "/products", icon: "Package", permission: ["product.view"], ready: true },
       { label: "Categories", href: "/products/categories", icon: "FolderTree", permission: ["product.view"], ready: true },
+      { label: "New from Quotations", href: "/products/pending", icon: "PackageCheck", permission: ["product.edit"], ready: true, modules: ["sales"] },
       { label: "Stock Overview", href: "/inventory", icon: "Warehouse", permission: ["inventory.view", "product.view"], ready: true, modules: ["inventory"] },
       { label: "Goods Received", href: "/inventory/receipts", icon: "PackagePlus", permission: ["inventory.view"], ready: true, modules: ["inventory", "procurement"] },
       { label: "Goods Issued", href: "/inventory/issues", icon: "PackageMinus", permission: ["inventory.view"], ready: true, modules: ["inventory"] },
@@ -68,7 +69,7 @@ export const NAVIGATION: NavGroup[] = [
 
 /** URL prefixes that belong to a module (longest prefix wins). Pages not listed are core. */
 export const ROUTE_MODULES: [string, string[]][] = [
-  ["/dashboard", ["sales"]],
+  ["/dashboard", ["sales"]], ["/products/pending", ["sales"]],
   ["/customers", ["sales", "finance"]], ["/leads", ["sales"]], ["/follow-ups", ["sales"]], ["/quotations", ["sales"]], ["/sales-orders", ["sales"]],
   ["/inventory/receipts", ["inventory", "procurement"]], ["/inventory", ["inventory"]],
   ["/settings/warehouses", ["inventory", "procurement", "logistics"]],

@@ -35,6 +35,9 @@ const statusTone: Record<string, keyof typeof tones> = {
   open: "amber",
   // finance
   void: "slate", paid: "green", partially_paid: "blue", queued: "amber", sending: "blue", failed: "red", not_enabled: "slate",
+  // bulk import & new products on quotations
+  ready: "green", error: "red", duplicate: "amber", unmatched: "amber", imported: "green", skipped: "slate",
+  proposed: "amber", added: "green", linked: "blue",
 };
 
 export function StatusBadge({ status }: { status: string }) {

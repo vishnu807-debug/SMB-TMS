@@ -27,12 +27,15 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
   if (!p) notFound();
 
   const canInv = can(user, "inventory.view");
-  const [{ data: catPath }, { data: summary }, { data: byWh }, { data: moves }, { data: atts }] = await Promise.all([
+  const [{ data: catPath }, { data: summary }, { data: byWh }, { data: moves }, { data: atts }, { data: origins }] = await Promise.all([
     p.category_id ? supabase.from("v_product_categories").select("full_path").eq("id", p.category_id).maybeSingle() : Promise.resolve({ data: null }),
     supabase.from("v_product_inventory").select("*").eq("product_id", id).maybeSingle(),
     canInv ? supabase.from("v_inventory_position").select("*").eq("product_id", id).order("warehouse_code") : Promise.resolve({ data: [] }),
     canInv ? supabase.from("v_stock_movements").select("*").eq("product_id", id).order("seq", { ascending: false }).limit(15) : Promise.resolve({ data: [] }),
     supabase.from("product_attachments").select("id, file_name, kind, size_bytes, storage_path").eq("product_id", id).order("created_at"),
+    // Quotation items this product was created from or linked to (audit trail).
+    supabase.from("quote_products").select("id, status, decided_at, decision_note, created_at, quotation:quotations(id, doc_no), creator:profiles!quote_products_created_by_fkey(full_name), decider:profiles!quote_products_decided_by_fkey(full_name)")
+      .eq("product_id", id).order("decided_at"),
   ]);
 
   // Private bucket → short-lived signed URLs.
@@ -97,6 +100,19 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
             </CardContent>
           </Card>
 
+          {(origins ?? []).length > 0 && (
+            <Card>
+              <CardHeader><CardTitle>From quotations</CardTitle></CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                {(origins ?? []).map((o: any) => (
+                  <p key={o.id}>
+                    {o.status === "added" ? "Created from" : "Linked from"} {o.quotation ? <Link href={`/quotations/${o.quotation.id}`} className="font-mono text-navy-700 hover:underline">{o.quotation.doc_no}</Link> : "a quotation"}
+                    <span className="text-slate-500"> · entered by {o.creator?.full_name ?? "—"} · {o.status === "added" ? "added" : "linked"} by {o.decider?.full_name ?? "—"} on {new Date(o.decided_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}{o.decision_note ? ` — “${o.decision_note}”` : ""}</span>
+                  </p>
+                ))}
+              </CardContent>
+            </Card>
+          )}
           <Card>
             <CardHeader><CardTitle>Technical specifications</CardTitle></CardHeader>
             {specs.length ? (

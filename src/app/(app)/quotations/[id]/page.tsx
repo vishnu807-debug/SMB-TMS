@@ -11,6 +11,7 @@ import { Alert } from "@/components/ui/alert";
 import { TBody, TD, TH, THead, TR, Table } from "@/components/ui/table";
 import { ActivityPanel } from "@/components/sales/activity-panel";
 import { QuotationActions } from "@/components/quotations/quotation-actions";
+import { QuotationDocuments, type QDoc } from "@/components/quotations/quotation-documents";
 import { cn, formatDate, formatDateTime, formatMoney, formatQty } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Quotation" };
@@ -29,8 +30,10 @@ export default async function QuotationPage({ params }: { params: Promise<{ id: 
   if (!q) notFound();
 
   const canCost = can(user, "quotation.view_cost");
-  const [{ data: lines }, { data: costs }, { data: margin }, { data: approvals }, { data: revisions }, { data: order }, { data: stock }, activities] = await Promise.all([
-    supabase.from("quotation_lines").select("*, product:products(id, sku, item_type, uom:units_of_measure(code)), tax:tax_codes(code)").eq("quotation_id", id).order("line_no"),
+  const [{ data: lines }, { data: costs }, { data: margin }, { data: approvals }, { data: revisions }, { data: order }, { data: stock }, activities, { data: docs }, { data: recorder }] = await Promise.all([
+    supabase.from("quotation_lines").select(`*, product:products(id, sku, name, item_type, uom:units_of_measure(code)), tax:tax_codes(code), uom:units_of_measure(code),
+      qp:quote_products(id, name, brand, model_no, technical_specs, status, decided_at, decider:profiles!quote_products_decided_by_fkey(full_name), creator:profiles!quote_products_created_by_fkey(full_name))`)
+      .eq("quotation_id", id).order("line_no"),
     canCost ? supabase.from("quotation_line_costs").select("line_id, unit_cost, cost_source").eq("quotation_id", id) : Promise.resolve({ data: [] }),
     canCost ? supabase.rpc("quotation_margin", { p_id: id }).maybeSingle() : Promise.resolve({ data: null }),
     supabase.from("approval_requests").select("*, requester:profiles!approval_requests_requested_by_fkey(full_name), decider:profiles!approval_requests_decided_by_fkey(full_name)")
@@ -39,7 +42,16 @@ export default async function QuotationPage({ params }: { params: Promise<{ id: 
     supabase.from("sales_orders").select("id, doc_no, status").eq("quotation_id", id).maybeSingle(),
     supabase.from("v_product_stock").select("product_id, qty_available"),
     loadActivities({ quotation_id: id }),
+    supabase.from("quotation_documents").select("id, kind, file_name, size_bytes, include_in_share, product_id, quote_product_id, product_attachment_id, created_at, creator:profiles!quotation_documents_created_by_fkey(full_name)")
+      .eq("quotation_id", id).order("created_at"),
+    q.confirmation_recorded_by ? supabase.from("profiles").select("full_name").eq("id", q.confirmation_recorded_by).maybeSingle() : Promise.resolve({ data: null }),
   ]);
+  const productIds = [...new Set((lines ?? []).map((l: any) => l.product_id).filter(Boolean))] as string[];
+  const { data: catalogueDocs } = productIds.length
+    ? await supabase.from("product_attachments").select("id, product_id, file_name, kind").in("product_id", productIds).neq("kind", "image").order("file_name")
+    : { data: [] as { id: string; product_id: string; file_name: string; kind: string }[] };
+  const newItems = (lines ?? []).filter((l: any) => l.qp).map((l: any) => ({ ...l.qp, line_no: l.line_no, product: l.product }));
+  const pendingNew = newItems.filter((x) => x.status === "proposed");
   const cost = new Map((costs ?? []).map((c: any) => [c.line_id, c]));
   const avail = new Map((stock ?? []).map((s) => [s.product_id, Number(s.qty_available)]));
   const m: any = margin;
@@ -48,7 +60,7 @@ export default async function QuotationPage({ params }: { params: Promise<{ id: 
   // Offer only the actions that make sense now; the database checks every one again.
   const own = q.sales_rep_id === user.id || can(user, "quotation.view_all");
   const edit = can(user, "quotation.edit") && own;
-  const actions: Parameters<typeof QuotationActions>[0]["actions"] = ["pdf"];
+  const actions: Parameters<typeof QuotationActions>[0]["actions"] = ["pdf", "package"];
   switch (q.status) {
     case "draft": if (edit) actions.push("edit", "lost", "submit"); break;
     case "pending_approval":
@@ -58,11 +70,10 @@ export default async function QuotationPage({ params }: { params: Promise<{ id: 
     case "rejected": if (edit) actions.push("reopen", "lost"); break;
     case "approved": case "sent":
       if (edit) actions.push("revise", "lost", ...(q.status === "approved" ? ["sent" as const] : []), "accepted");
-      if (can(user, "sales_order.create") && own) actions.push("convert");
+      if (can(user, "sales_order.create") && own && pendingNew.length === 0) actions.push("convert");
       break;
     case "accepted":
-      if (edit) actions.push("revise");
-      if (can(user, "sales_order.create") && own) actions.push("convert");
+      if (can(user, "sales_order.create") && own && pendingNew.length === 0) actions.push("convert");
       break;
     case "expired": if (edit) actions.push("revise", "lost"); break;
   }
@@ -75,7 +86,7 @@ export default async function QuotationPage({ params }: { params: Promise<{ id: 
         back={{ href: "/quotations", label: "Quotations" }}
         title={<span className="flex items-center gap-3"><span className="font-mono">{q.doc_no}</span> <StatusBadge status={q.status} /></span>}
         description={<span><Link href={`/customers/${q.customer.id}`} className="text-navy-700 hover:underline">{q.customer.name}</Link>{q.subject && ` · ${q.subject}`}</span>}
-        actions={<QuotationActions id={q.id} actions={actions} />}
+        actions={<QuotationActions id={q.id} actions={actions} quotationDate={q.quotation_date} hasNewProducts={pendingNew.length > 0} />}
       />
       {pending && <Alert tone="warning" className="mb-4">Awaiting approval: {pending.reasons.join("; ")}. Requested by {pending.requester?.full_name} on {formatDateTime(pending.requested_at)}.</Alert>}
       {q.status === "rejected" && approvals?.[0]?.status === "rejected" && <Alert tone="error" className="mb-4">Rejected by {approvals[0].decider?.full_name}: {approvals[0].comment}</Alert>}
@@ -83,6 +94,13 @@ export default async function QuotationPage({ params }: { params: Promise<{ id: 
       {q.status === "superseded" && <Alert tone="info" className="mb-4">This revision has been replaced by a newer one.</Alert>}
       {order && <Alert tone="success" className="mb-4">Converted to sales order <Link href={`/sales-orders/${order.id}`} className="font-semibold underline">{order.doc_no}</Link>.</Alert>}
       {["approved", "sent"].includes(q.status) && q.valid_until < today && <Alert tone="warning" className="mb-4">The validity date has passed. Revise the quotation before converting it.</Alert>}
+      {q.status === "sent" && q.valid_until >= today && <Alert tone="info" className="mb-4">Sent to the customer on {formatDate(q.sent_at)} — awaiting customer confirmation. Record it with <strong>Customer confirmed</strong> when the customer accepts.</Alert>}
+      {pendingNew.length > 0 && ["accepted"].includes(q.status) && (
+        <Alert tone="warning" className="mb-4">
+          {pendingNew.length} new product{pendingNew.length > 1 ? "s" : ""} on this confirmed quotation {pendingNew.length > 1 ? "need" : "needs"} to be added to the product catalogue (or linked to an existing product) before a sales order can be created.
+          {can(user, "product.edit") ? <> <Link href="/products/pending" className="font-semibold underline">Review now</Link>.</> : " Someone who maintains the product catalogue has been notified."}
+        </Alert>
+      )}
 
       <div className="grid gap-6 xl:grid-cols-3">
         <div className="space-y-6 xl:col-span-2">
@@ -107,18 +125,30 @@ export default async function QuotationPage({ params }: { params: Promise<{ id: 
                 {(lines ?? []).map((l: any) => {
                   const c = cost.get(l.id);
                   const lm = c && Number(l.net_amount) > 0 ? ((Number(l.net_amount) - Number(l.qty) * Number(c.unit_cost)) / Number(l.net_amount)) * 100 : null;
-                  const a = avail.get(l.product.id);
+                  const a = l.product ? avail.get(l.product.id) : undefined;
                   return (
                     <TR key={l.id}>
                       <TD className="text-slate-400">{l.line_no}</TD>
-                      <TD><p className="whitespace-pre-line">{l.description}</p><p className="font-mono text-xs text-slate-500">{l.product.sku}{l.lead_time_text && <span className="font-sans"> · {l.lead_time_text}</span>}</p></TD>
-                      <TD numeric>{formatQty(l.qty)} <span className="text-xs text-slate-400">{l.product.uom?.code}</span></TD>
+                      <TD>
+                        <p className="whitespace-pre-line">{l.description}</p>
+                        <p className="font-mono text-xs text-slate-500">{l.product?.sku}{l.lead_time_text && <span className="font-sans"> · {l.lead_time_text}</span>}</p>
+                        {l.qp && (
+                          <div className="mt-1 space-y-0.5 text-xs">
+                            <p className="flex flex-wrap items-center gap-1.5">
+                              <Badge tone={l.qp.status === "proposed" ? "amber" : "green"}>{l.qp.status === "proposed" ? "New product — not in catalogue" : l.qp.status === "added" ? "Added to catalogue" : "Linked to catalogue"}</Badge>
+                              {[l.qp.brand, l.qp.model_no].filter(Boolean).join(" · ")}
+                            </p>
+                            {(l.qp.technical_specs ?? []).length > 0 && <p className="text-slate-500">{l.qp.technical_specs.map((x: any) => (x.value ? `${x.name}: ${x.value}` : x.name)).join(" · ")}</p>}
+                          </div>
+                        )}
+                      </TD>
+                      <TD numeric>{formatQty(l.qty)} <span className="text-xs text-slate-400">{l.uom?.code}</span></TD>
                       <TD numeric>{formatMoney(l.unit_price)}</TD>
                       <TD numeric>{Number(l.discount_pct) ? `${Number(l.discount_pct)}%` : "—"}</TD>
                       <TD>{l.tax?.code} {Number(l.tax_rate)}%</TD>
                       <TD>
                         <Badge tone={l.fulfilment_mode === "stock" ? "green" : "blue"}>{l.fulfilment_mode === "stock" ? "Stock" : "Procure"}</Badge>
-                        {l.product.item_type === "stock" && ["draft", "pending_approval", "approved", "sent", "accepted"].includes(q.status) && (
+                        {l.product?.item_type === "stock" && ["draft", "pending_approval", "approved", "sent", "accepted"].includes(q.status) && (
                           <p className={cn("mt-0.5 text-xs", (a ?? 0) >= Number(l.qty) ? "text-emerald-700" : "text-amber-700")}>{formatQty(a ?? 0)} available now</p>
                         )}
                       </TD>
@@ -139,6 +169,11 @@ export default async function QuotationPage({ params }: { params: Promise<{ id: 
             </dl>
           </Card>
 
+          <QuotationDocuments quotationId={q.id} editable={edit && !["superseded", "lost"].includes(q.status)}
+            docs={(docs ?? []).map((d: any): QDoc => ({ ...d, creator: d.creator?.full_name ?? null }))}
+            items={(lines ?? []).map((l: any) => ({ line_no: l.line_no, label: l.description.split("\n")[0].slice(0, 60), product_id: l.product_id, quote_product_id: l.qp?.status === "proposed" ? l.qp.id : null }))}
+            catalogueDocs={catalogueDocs ?? []} />
+
           <Card>
             <CardHeader><CardTitle>Terms and notes</CardTitle></CardHeader>
             <CardContent className="space-y-4 text-sm">
@@ -150,6 +185,34 @@ export default async function QuotationPage({ params }: { params: Promise<{ id: 
         </div>
 
         <div className="space-y-6">
+          {q.confirmation_method && (
+            <Card>
+              <CardHeader><CardTitle>Customer confirmation</CardTitle></CardHeader>
+              <CardContent className="space-y-1.5 text-sm">
+                <p><span className="text-slate-500">Confirmed on</span> {formatDate(q.confirmation_date)} <span className="text-slate-500">by</span> {({ purchase_order: "purchase order", email: "email", signed_quotation: "signed quotation", phone: "phone", other: "other" } as Record<string, string>)[q.confirmation_method]}</p>
+                {q.confirmation_reference && <p><span className="text-slate-500">Reference:</span> <span className="font-medium">{q.confirmation_reference}</span></p>}
+                {q.confirmation_note && <p className="whitespace-pre-line text-slate-700">{q.confirmation_note}</p>}
+                <p className="text-xs text-slate-500">Recorded by {recorder?.full_name ?? "—"} on {formatDateTime(q.confirmation_recorded_at)}</p>
+              </CardContent>
+            </Card>
+          )}
+          {newItems.length > 0 && (
+            <Card>
+              <CardHeader><CardTitle>New products</CardTitle>{can(user, "product.edit") && pendingNew.length > 0 && ["accepted", "converted"].includes(q.status) && <Link href="/products/pending" className="text-xs font-medium text-navy-700 hover:underline">Review</Link>}</CardHeader>
+              <CardContent className="space-y-3 text-sm">
+                {newItems.map((x) => (
+                  <div key={x.id}>
+                    <p className="flex items-center justify-between gap-2"><span className="font-medium">Line {x.line_no}: {x.name}</span> <StatusBadge status={x.status} /></p>
+                    <p className="text-xs text-slate-500">
+                      Entered by {x.creator?.full_name ?? "—"}
+                      {x.status !== "proposed" && x.product && <> · {x.status === "added" ? "added as" : "linked to"} <Link href={`/products/${x.product.id}`} className="font-mono text-navy-700 hover:underline">{x.product.sku}</Link> by {x.decider?.full_name} on {formatDate(x.decided_at)}</>}
+                      {x.status === "proposed" && (["accepted", "converted"].includes(q.status) ? " · waiting for catalogue approval" : " · added to the catalogue only after the customer confirms")}
+                    </p>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
           {m && (
             <Card>
               <CardHeader><CardTitle>Profitability (internal)</CardTitle></CardHeader>

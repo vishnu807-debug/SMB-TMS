@@ -5,10 +5,11 @@ import type { CurrentUser } from "@/lib/auth/session";
 
 export async function loadEditorData(user: CurrentUser) {
   const supabase = await createClient();
-  const [lookups, { data: customers }, { data: rules }] = await Promise.all([
+  const [lookups, { data: customers }, { data: rules }, { data: uoms }] = await Promise.all([
     loadSalesLookups(),
     supabase.from("customers").select("id, name, code").eq("status", "active").order("name"),
     supabase.from("approval_rules").select("metric, comparison, threshold, name").eq("doc_type", "quotation").eq("is_active", true),
+    supabase.from("units_of_measure").select("id, code, name").eq("is_active", true).order("code"),
   ]);
   return {
     lookups, customers: customers ?? [],
@@ -16,5 +17,6 @@ export async function loadEditorData(user: CurrentUser) {
     canViewCost: user.permissions.has("quotation.view_cost"),
     canChooseRep: user.permissions.has("quotation.view_all"),
     currentUserId: user.id,
+    uoms: uoms ?? [],
   };
 }
