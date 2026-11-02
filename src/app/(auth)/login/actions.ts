@@ -35,7 +35,15 @@ export async function signIn(_prev: LoginState, formData: FormData): Promise<Log
   const supabase = await createClient();
   const { data: signedIn, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) {
-    if (admin) await admin.rpc("log_auth_event", { p_user: null, p_email: email, p_type: "sign_in_failed", p_ip: info.ip, p_user_agent: info.userAgent, p_details: { reason: error.code ?? "invalid" } });
+    const reason = error.code ?? (error.status === 0 ? "unreachable" : `http_${error.status ?? "unknown"}`);
+    console.error("Sign-in failed", { reason, status: error.status, message: error.message });
+    if (admin) await admin.rpc("log_auth_event", { p_user: null, p_email: email, p_type: "sign_in_failed", p_ip: info.ip, p_user_agent: info.userAgent, p_details: { reason } });
+    if (error.code === "email_not_confirmed")
+      return { error: "This account's email address has not been confirmed. Ask the administrator to confirm it in Supabase (Authentication → Users)." };
+    // A configuration problem is not the user's fault — say so instead of blaming the password.
+    if (error.status === 0 || (error.status ?? 0) >= 500 || /api key|apikey|fetch|network/i.test(error.message ?? ""))
+      return { error: "The sign-in service cannot be reached. The administrator should check the Supabase URL and keys in the hosting settings." };
+    if (error.status === 429) return { error: "Too many attempts. Please wait a few minutes and try again." };
     // Same message for unknown email and wrong password, so accounts can't be probed.
     return { error: "Incorrect email or password." };
   }
