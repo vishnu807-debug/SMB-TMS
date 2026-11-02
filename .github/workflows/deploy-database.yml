@@ -1,0 +1,58 @@
+name: Deploy database
+
+# Applies new files in supabase/migrations to the live Supabase project.
+# Runs automatically after the CI workflow passes on main (so a migration that
+# fails its tests never reaches the live database), and can be started by hand
+# from GitHub → Actions → Deploy database → Run workflow.
+#
+# Needs three repository secrets (Settings → Secrets and variables → Actions):
+#   SUPABASE_ACCESS_TOKEN  – supabase.com → Account → Access Tokens
+#   SUPABASE_PROJECT_REF   – the project ref, e.g. abcdefghijklmnopqrst
+#   SUPABASE_DB_PASSWORD   – the database password of the project
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-database
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    name: Apply migrations to Supabase
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Deploy exactly the commit that passed CI.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Check secrets
+        run: |
+          missing=0
+          for v in SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD SUPABASE_PROJECT_REF; do
+            if [ -z "${!v}" ]; then echo "::error::Repository secret $v is not set (Settings → Secrets and variables → Actions)."; missing=1; fi
+          done
+          exit $missing
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link project
+        run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
+
+      - name: Migrations to apply
+        run: supabase db push --dry-run
+
+      - name: Apply
+        run: supabase db push

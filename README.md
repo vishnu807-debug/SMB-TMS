@@ -126,6 +126,25 @@ In the app, as the administrator:
    unit costs; another user approves it.
 7. Invite the staff and give each the right role (User Management → user → Roles).
 
+### Updates without your computer (automatic database deployment)
+
+Once set up, every update deploys itself from GitHub:
+
+* **Website:** Vercel rebuilds and publishes it on every push to `main`. This was already the case.
+* **Database:** the **Deploy database** GitHub Action (`.github/workflows/deploy-database.yml`) runs after CI passes and
+  applies any new migration with `supabase db push`. If the tests fail, nothing is applied.
+
+Set it up once in **GitHub → repository → Settings → Secrets and variables → Actions → New repository secret**:
+
+| Secret | Where to get it |
+| --- | --- |
+| `SUPABASE_ACCESS_TOKEN` | supabase.com → avatar → **Account preferences → Access Tokens → Generate new token** |
+| `SUPABASE_PROJECT_REF` | the part of your Supabase URL before `.supabase.co` |
+| `SUPABASE_DB_PASSWORD` | the project's database password (reset it under **Project Settings → Database** if forgotten) |
+
+To run it by hand, go to **GitHub → Actions → Deploy database → Run workflow**. A green tick means the database is up to
+date. If a run fails, open it to see the error.
+
 ### Custom domain (optional)
 
 **Vercel → Project → Settings → Domains → Add** (e.g. `erp.smp.ae`) and create the DNS record Vercel shows at your domain
