@@ -3,8 +3,15 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   serverExternalPackages: ["@react-pdf/renderer"],
-  // Font files are read from disk by the PDF route; make sure they ship with it.
-  outputFileTracingIncludes: { "/quotations/[id]/pdf": ["./node_modules/@fontsource/inter/files/inter-latin-*-normal.woff"] },
+  // The PDF routes read font files from disk at runtime (our Inter fonts, and pdfkit's
+  // built-in standard fonts which it loads on start-up). File tracing cannot see these
+  // dynamic reads, so list them explicitly or they are missing on Vercel.
+  outputFileTracingIncludes: Object.fromEntries(
+    ["/quotations/[id]/pdf", "/purchase-orders/[id]/pdf", "/logistics/deliveries/[id]/pdf", "/invoices/[id]/pdf"].map((route) => [
+      route,
+      ["./node_modules/@fontsource/inter/files/inter-latin-{400,700}-normal.woff", "./node_modules/pdfkit/js/standard-fonts/**/*"],
+    ]),
+  ),
   experimental: { serverActions: { bodySizeLimit: "26mb" } },
   async headers() {
     return [
