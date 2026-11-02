@@ -9,7 +9,8 @@ export async function setNewPassword(_prev: { error?: string } | undefined, form
   const parsed = passwordSchema.safeParse(pw);
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const supabase = await createClient();
-  const { error } = await supabase.auth.updateUser({ password: parsed.data });
+  // Also clears the "temporary password" flag set by an administrator.
+  const { error } = await supabase.auth.updateUser({ password: parsed.data, data: { must_change_password: false } });
   if (error) return { error: error.message.includes("different") ? "Choose a password you haven't used before." : "Could not change the password. Request a new link." };
   await supabase.rpc("record_own_auth_event", { p_type: "password_changed" });
   // Every device signs in again with the new password.

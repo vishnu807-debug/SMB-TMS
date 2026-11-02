@@ -14,6 +14,8 @@ export type CurrentUser = {
   modules: Set<string>;
   /** Software vendor's support account: may open the Vendor Console. */
   isPlatformAdmin: boolean;
+  /** Set when an administrator gave a temporary password. */
+  mustChangePassword: boolean;
 };
 
 /** The signed-in user with their effective permissions (one load per request). */
@@ -36,6 +38,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
     permissions: new Set<string>((perms as string[] | null) ?? []),
     modules: new Set<string>((mods as string[] | null) ?? ["core"]),
     isPlatformAdmin: vendor === true,
+    mustChangePassword: user.user_metadata?.must_change_password === true,
   };
 });
 
@@ -43,6 +46,7 @@ export async function requireUser(): Promise<CurrentUser> {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   if (!user.isActive) redirect("/login?error=inactive");
+  if (user.mustChangePassword) redirect("/reset-password?first=1");
   return user;
 }
 

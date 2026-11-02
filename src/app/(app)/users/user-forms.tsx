@@ -2,7 +2,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
-import { inviteUser, removeUserPermission, resendInvite, revokeSessions, setUserActive, setUserPermission, setUserRoles, updateUserDetails } from "./actions";
+import { inviteUser, removeUserPermission, resendInvite, revokeSessions, setTemporaryPassword, setUserActive, setUserPermission, setUserRoles, updateUserDetails } from "./actions";
 import type { ActionResult } from "@/lib/errors";
 import { Field, Input, Select } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,26 @@ type Role = { code: string; name: string; description: string | null; department
 function Msg({ r }: { r: ActionResult<any> | null }) {
   if (!r) return null;
   return <Alert tone={r.ok ? "success" : "error"}>{r.ok ? r.message ?? "Saved." : r.error}</Alert>;
+}
+
+/** A random password that meets the policy (no look-alike characters). */
+function generatePassword() {
+  const sets = ["ABCDEFGHJKLMNPQRSTUVWXYZ", "abcdefghijkmnpqrstuvwxyz", "23456789", "!@#$%*?"];
+  const all = sets.join("");
+  const pick = (s: string) => s[crypto.getRandomValues(new Uint32Array(1))[0] % s.length];
+  const chars = [...sets.map(pick), ...Array.from({ length: 10 }, () => pick(all))];
+  for (let i = chars.length - 1; i > 0; i--) { const j = crypto.getRandomValues(new Uint32Array(1))[0] % (i + 1); [chars[i], chars[j]] = [chars[j], chars[i]]; }
+  return chars.join("");
+}
+
+function TempPassword({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="flex gap-2">
+      <Input value={value} onChange={(e) => onChange(e.target.value)} className="font-mono" autoComplete="new-password" aria-label="Temporary password" />
+      <Button type="button" variant="outline" onClick={() => onChange(generatePassword())}>Generate</Button>
+      <Button type="button" variant="outline" disabled={!value} onClick={() => navigator.clipboard?.writeText(value)}>Copy</Button>
+    </div>
+  );
 }
 
 function DetailsFields({ v, set, departments, managers }: { v: Record<string, string>; set: (k: string, x: string) => void; departments: Opt[]; managers: Opt[] }) {
@@ -59,21 +79,31 @@ export function InviteForm({ roles, departments, managers }: { roles: Role[]; de
   const [sel, setSel] = useState<string[]>([]);
   const [busy, start] = useTransition();
   const [res, setRes] = useState<ActionResult<{ id: string }> | null>(null);
+  const [method, setMethod] = useState<"email" | "password">("email");
+  const [password, setPassword] = useState("");
   const set = (k: string, x: string) => setV((p) => ({ ...p, [k]: x }));
   return (
     <div className="space-y-5">
       <Msg r={res} />
-      <Field label="Work email" htmlFor="email" required hint="They'll receive an email with a link to set their password.">
+      <Field label="Work email" htmlFor="email" required hint="Used to sign in.">
         <Input id="email" type="email" value={v.email ?? ""} onChange={(e) => set("email", e.target.value)} />
       </Field>
+      <div className="space-y-2 rounded-md border border-slate-200 p-3">
+        <p className="text-sm font-medium text-slate-700">How will they get access?</p>
+        <label className="flex items-start gap-2 text-sm"><input type="radio" className="mt-1" checked={method === "email"} onChange={() => setMethod("email")} />
+          <span>Email an invitation <span className="block text-xs text-slate-500">They receive a link to set their own password. Needs email set up in Supabase.</span></span></label>
+        <label className="flex items-start gap-2 text-sm"><input type="radio" className="mt-1" checked={method === "password"} onChange={() => { setMethod("password"); if (!password) setPassword(generatePassword()); }} />
+          <span>Set a temporary password <span className="block text-xs text-slate-500">No email is sent. Give them the password yourself; they must choose their own when they first sign in.</span></span></label>
+        {method === "password" && <TempPassword value={password} onChange={setPassword} />}
+      </div>
       <DetailsFields v={v} set={set} departments={departments} managers={managers} />
       <div><p className="mb-2 text-sm font-medium text-slate-700">Roles</p><RoleChecklist roles={roles} selected={sel} onChange={setSel} /></div>
       <div className="flex justify-end">
         <Button disabled={busy} onClick={() => start(async () => {
-          const r = await inviteUser({ ...v, roles: sel });
+          const r = await inviteUser({ ...v, roles: sel, method, password: method === "password" ? password : undefined });
           setRes(r);
           if (r.ok) router.push(`/users/${r.data!.id}`);
-        })}>{busy && <Loader2 className="animate-spin" />} Send invitation</Button>
+        })}>{busy && <Loader2 className="animate-spin" />} {method === "email" ? "Send invitation" : "Create user"}</Button>
       </div>
     </div>
   );
@@ -107,6 +137,7 @@ export function RolesForm({ id, roles, initial, disabled }: { id: string; roles:
 
 export function StatusControl({ id, active, email }: { id: string; active: boolean; email: string }) {
   const [reason, setReason] = useState("");
+  const [temp, setTemp] = useState<string | null>(null);
   const [busy, start] = useTransition();
   const [res, setRes] = useState<ActionResult | null>(null);
   return (
@@ -121,7 +152,15 @@ export function StatusControl({ id, active, email }: { id: string; active: boole
       <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-3">
         <Button variant="outline" size="sm" disabled={busy} onClick={() => start(async () => setRes(await revokeSessions(id)))}>Sign out of all devices</Button>
         <Button variant="outline" size="sm" disabled={busy} onClick={() => start(async () => setRes(await resendInvite(email)))}>Send password-reset link</Button>
+        <Button variant="outline" size="sm" disabled={busy} onClick={() => setTemp(temp === null ? generatePassword() : null)}>Set temporary password</Button>
       </div>
+      {temp !== null && (
+        <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3">
+          <p className="text-xs text-slate-600">The user is signed out everywhere and must choose a new password when they next sign in. Copy the password before saving.</p>
+          <TempPassword value={temp} onChange={setTemp} />
+          <div className="flex justify-end"><Button size="sm" disabled={busy || !temp} onClick={() => start(async () => { const r = await setTemporaryPassword(id, temp); setRes(r); if (r.ok) setTemp(null); })}>Save temporary password</Button></div>
+        </div>
+      )}
     </div>
   );
 }
