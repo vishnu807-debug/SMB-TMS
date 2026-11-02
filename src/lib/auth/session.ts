@@ -12,6 +12,8 @@ export type CurrentUser = {
   permissions: Set<string>;
   /** Modules switched on for this installation (backend setting). */
   modules: Set<string>;
+  /** Software vendor's support account: may open the Vendor Console. */
+  isPlatformAdmin: boolean;
 };
 
 /** The signed-in user with their effective permissions (one load per request). */
@@ -19,10 +21,11 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
-  const [{ data: profile }, { data: perms }, { data: mods }] = await Promise.all([
+  const [{ data: profile }, { data: perms }, { data: mods }, { data: vendor }] = await Promise.all([
     supabase.from("profiles").select("full_name, email, job_title, is_active").eq("id", user.id).single(),
     supabase.rpc("my_permissions"),
     supabase.rpc("enabled_modules"),
+    supabase.rpc("i_am_platform_admin"),
   ]);
   return {
     id: user.id,
@@ -32,6 +35,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
     isActive: profile?.is_active ?? false,
     permissions: new Set<string>((perms as string[] | null) ?? []),
     modules: new Set<string>((mods as string[] | null) ?? ["core"]),
+    isPlatformAdmin: vendor === true,
   };
 });
 
@@ -55,6 +59,13 @@ export async function requirePermission(code: string | string[]): Promise<Curren
 
 export function can(user: CurrentUser, code: string) {
   return user.permissions.has(code);
+}
+
+/** Vendor Console guard (the database checks again in every vendor function). */
+export async function requirePlatformAdmin(): Promise<CurrentUser> {
+  const user = await requireUser();
+  if (!user.isPlatformAdmin) redirect("/forbidden");
+  return user;
 }
 
 /** True when any of the given modules is switched on. */

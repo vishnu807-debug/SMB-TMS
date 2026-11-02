@@ -144,9 +144,38 @@ registrar. Then repeat Step 5 with the new address.
 
 ## Licensed modules (switching modules on and off)
 
-Each installation can run only the modules the client has taken. Modules are switched **in the backend**: the
-Supabase SQL editor (or anything using the service-role key). Nobody can switch them from inside the app, not even
-the client's Super Administrator. Admins can see what is active in **System Settings → Licensed modules**.
+Each installation can run only the modules the client has taken. Modules are switched by the **system provider**
+(the software vendor) — either in the **Vendor console** inside the app (see below) or in the Supabase SQL editor.
+The client's own users cannot switch them, not even their Super Administrator. Client admins can see what is active
+in **System Settings → Licensed modules**.
+
+### Vendor console
+
+The vendor console is a page inside each client's installation that only the vendor's support account can open.
+It shows the client, user count and last sign-in, lets you tick the modules the client has bought (dependencies are
+ticked or unticked for you), asks for a licence/order reference, and keeps a change history.
+
+Set up the vendor account once per installation:
+
+1. **Supabase → Authentication → Users → Add user → Create new user.** Use the vendor's email (e.g.
+   `support@your-company.com`), a strong password, and tick **Auto Confirm User**.
+2. **Supabase → SQL Editor**, run:
+
+   ```sql
+   select public.grant_platform_admin('support@your-company.com', 'Vendor support');
+   ```
+
+3. Sign in to the app with that account. The menu shows **System provider → Vendor console** (`/vendor`).
+
+What the vendor account can and cannot do:
+
+* It can change the licensed modules. Every change is recorded with the vendor's email and the reference.
+* It does **not** see the client's business data (customers, invoices…) unless the client gives it a role.
+* It is hidden from the client's **User management**, and client admins cannot edit, deactivate or re-role it.
+* Vendor access can only be granted or removed in the backend:
+  `select public.revoke_platform_admin('support@your-company.com');`
+
+### Switching modules from SQL
 
 | Code | Module | Needs |
 | --- | --- | --- |
@@ -158,7 +187,7 @@ the client's Super Administrator. Admins can see what is active in **System Sett
 | `finance` | Invoices, credit notes, receipts, supplier bills and payments, expenses, bank accounts, VAT summary | — |
 | `einvoicing` | UAE e-invoicing (PINT AE) through an accredited service provider | `finance` |
 
-New installations start with everything on except `einvoicing`. Open **Supabase → SQL Editor** and run, for example:
+New installations start with everything on except `einvoicing`. Without the vendor console, open **Supabase → SQL Editor** and run, for example:
 
 ```sql
 -- See what is on

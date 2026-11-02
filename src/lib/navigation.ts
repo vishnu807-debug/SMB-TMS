@@ -89,3 +89,15 @@ export function visibleNavigation(permissions: Set<string>, modules: Set<string>
     items: g.items.filter((i) => i.permission.some((p) => permissions.has(p)) && (!i.modules || i.modules.some((m) => modules.has(m)))),
   })).filter((g) => g.items.length > 0);
 }
+
+/** Extra menu for the software vendor's support account. */
+export const VENDOR_NAVIGATION: NavGroup = {
+  label: "System provider",
+  items: [{ label: "Vendor console", href: "/vendor", icon: "KeyRound", permission: [], ready: true }],
+};
+
+/** The full menu for a user, including the vendor console when it applies. */
+export function navigationFor(user: { permissions: Set<string>; modules: Set<string>; isPlatformAdmin: boolean }): NavGroup[] {
+  const groups = visibleNavigation(user.permissions, user.modules);
+  return user.isPlatformAdmin ? [VENDOR_NAVIGATION, ...groups] : groups;
+}

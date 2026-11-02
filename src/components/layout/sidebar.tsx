@@ -6,7 +6,7 @@ import { createPortal } from "react-dom";
 import {
   ArrowLeftRight, BadgeCheck, CalendarClock, BarChart3, Building2, ClipboardCheck, ClipboardList, CreditCard, FileText, FolderTree,
   History, Landmark, LayoutDashboard, Lock, MapPin, Package, PackageMinus, PackagePlus, Receipt, Route, Settings, ShieldCheck, ScrollText, ShoppingCart,
-  Factory, Menu, Target, Truck, Users, Wallet, Warehouse, X, type LucideIcon,
+  Factory, KeyRound, Menu, Target, Truck, Users, Wallet, Warehouse, X, type LucideIcon,
 } from "lucide-react";
 import type { NavGroup } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 const ICONS: Record<string, LucideIcon> = {
   ArrowLeftRight, BadgeCheck, CalendarClock, BarChart3, Building2, ClipboardCheck, ClipboardList, CreditCard, FileText, FolderTree,
   History, Landmark, LayoutDashboard, Lock, MapPin, Package, PackageMinus, PackagePlus, Receipt, Route, Settings, ShieldCheck, ScrollText, ShoppingCart,
-  Factory, Target, Truck, Users, Wallet, Warehouse,
+  Factory, KeyRound, Target, Truck, Users, Wallet, Warehouse,
 };
 
 function NavContent({ groups, onNavigate }: { groups: NavGroup[]; onNavigate?: () => void }) {

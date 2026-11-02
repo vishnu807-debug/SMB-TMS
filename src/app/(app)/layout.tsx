@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import { PackageX } from "lucide-react";
 import { requireUser } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
-import { modulesForPath, visibleNavigation } from "@/lib/navigation";
+import { modulesForPath, navigationFor } from "@/lib/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopBar } from "@/components/layout/top-bar";
 import { buttonVariants } from "@/components/ui/button";
@@ -17,7 +17,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   ]);
 
   // Only menu items the user's permissions allow, in modules that are switched on.
-  const groups = visibleNavigation(user.permissions, user.modules);
+  const groups = navigationFor(user);
 
   // Pages of switched-off modules are closed even when the address is typed in.
   // (The database refuses their data and actions independently.)
