@@ -1,6 +1,7 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { renderQuotationPdf } from "./quotation-pdf";
+import { documentLogoUrl } from "@/lib/branding";
 
 type Supabase = Awaited<ReturnType<typeof createClient>>;
 
@@ -18,11 +19,7 @@ export async function buildQuotationPdf(supabase: Supabase, id: string) {
       .eq("quotation_id", id).eq("include_in_share", true).neq("kind", "customer_confirmation").order("created_at"),
   ]);
   if (!q) return null;
-  let logoUrl: string | null = null;
-  if (company?.logo_path) {
-    const { data } = await supabase.storage.from("product-media").createSignedUrl(company.logo_path, 120);
-    logoUrl = data?.signedUrl ?? null;
-  }
+  const logoUrl = await documentLogoUrl(supabase, company?.logo_path);
   const enclosures = (docs ?? []).map((d) => d.file_name);
   const pdf = await renderQuotationPdf({ company: { ...company, logoUrl } as any, quotation: q, lines: lines ?? [], enclosures });
   return { quotation: q, pdf, docs: docs ?? [] };

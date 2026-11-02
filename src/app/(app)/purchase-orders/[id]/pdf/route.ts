@@ -1,3 +1,4 @@
+import { documentLogoUrl } from "@/lib/branding";
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth/session";
@@ -22,11 +23,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   ]);
   if (!po) return new NextResponse("Not found", { status: 404 });
 
-  let logoUrl: string | null = null;
-  if (company?.logo_path) {
-    const { data } = await supabase.storage.from("product-media").createSignedUrl(company.logo_path, 120);
-    logoUrl = data?.signedUrl ?? null;
-  }
+  const logoUrl = await documentLogoUrl(supabase, company?.logo_path);
   const pdf = await renderPurchaseOrderPdf({ company: { ...company, logoUrl } as any, po, lines: lines ?? [] });
   return new NextResponse(new Uint8Array(pdf), {
     headers: { "Content-Type": "application/pdf", "Content-Disposition": `attachment; filename="${po.doc_no}.pdf"`, "Cache-Control": "private, no-store" },

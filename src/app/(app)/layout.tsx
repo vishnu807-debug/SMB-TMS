@@ -7,6 +7,7 @@ import { modulesForPath, navigationFor } from "@/lib/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopBar } from "@/components/layout/top-bar";
 import { buttonVariants } from "@/components/ui/button";
+import { getBranding } from "@/lib/branding";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
@@ -18,6 +19,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   // Only menu items the user's permissions allow, in modules that are switched on.
   const groups = navigationFor(user);
+  const b = await getBranding();
+  const brand = { companyName: b.companyName, productName: b.productName, logoUrl: b.companyLogoUrl };
 
   // Pages of switched-off modules are closed even when the address is typed in.
   // (The database refuses their data and actions independently.)
@@ -28,9 +31,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex min-h-screen">
-      <Sidebar groups={groups} />
+      <Sidebar groups={groups} brand={brand} />
       <div className="flex min-w-0 flex-1 flex-col">
-        <TopBar user={user} unread={count ?? 0} groups={groups} />
+        <TopBar user={user} unread={count ?? 0} groups={groups} brand={brand} />
         <main className="flex-1 p-4 sm:p-6 lg:p-8">
           {closed ? (
             <div className="mx-auto mt-16 max-w-md text-center">

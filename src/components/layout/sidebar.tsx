@@ -17,7 +17,9 @@ const ICONS: Record<string, LucideIcon> = {
   Factory, KeyRound, Target, Truck, Users, Wallet, Warehouse,
 };
 
-function NavContent({ groups, onNavigate }: { groups: NavGroup[]; onNavigate?: () => void }) {
+export type SidebarBrand = { companyName: string; productName: string; logoUrl: string | null };
+
+function NavContent({ groups, brand, onNavigate }: { groups: NavGroup[]; brand: SidebarBrand; onNavigate?: () => void }) {
   const pathname = usePathname();
   // Longest matching href wins, so /inventory/receipts doesn't also light up /inventory.
   const all = groups.flatMap((g) => g.items).filter((i) => i.ready);
@@ -28,10 +30,13 @@ function NavContent({ groups, onNavigate }: { groups: NavGroup[]; onNavigate?: (
   return (
     <>
       <div className="flex h-16 items-center gap-3 border-b border-white/10 px-5">
-        <div className="flex size-8 items-center justify-center rounded bg-white text-sm font-bold text-navy-900">S</div>
-        <div className="leading-tight">
-          <p className="text-sm font-semibold text-white">SMP Trading</p>
-          <p className="text-[11px] text-navy-300">Management System</p>
+        {brand.logoUrl
+          // eslint-disable-next-line @next/next/no-img-element
+          ? <img src={brand.logoUrl} alt="" className="h-8 w-auto max-w-[72px] shrink-0 rounded bg-white object-contain p-0.5" />
+          : <div className="flex size-8 shrink-0 items-center justify-center rounded bg-white text-sm font-bold text-navy-900">{brand.companyName.slice(0, 1).toUpperCase()}</div>}
+        <div className="min-w-0 leading-tight">
+          <p className="truncate text-sm font-semibold text-white">{brand.companyName}</p>
+          <p className="truncate text-[11px] text-navy-300">{brand.productName}</p>
         </div>
       </div>
       <nav className="flex-1 overflow-y-auto px-3 py-4">
@@ -65,18 +70,18 @@ function NavContent({ groups, onNavigate }: { groups: NavGroup[]; onNavigate?: (
 }
 
 /** Desktop: fixed column; the navy background runs the full page height. */
-export function Sidebar({ groups }: { groups: NavGroup[] }) {
+export function Sidebar({ groups, brand }: { groups: NavGroup[]; brand: SidebarBrand }) {
   return (
     <div className="hidden w-64 shrink-0 bg-navy-900 lg:block">
       <aside className="sticky top-0 flex h-screen flex-col text-navy-100">
-        <NavContent groups={groups} />
+        <NavContent groups={groups} brand={brand} />
       </aside>
     </div>
   );
 }
 
 /** Phones and tablets: menu button in the top bar opening a drawer. */
-export function MobileNav({ groups }: { groups: NavGroup[] }) {
+export function MobileNav({ groups, brand }: { groups: NavGroup[]; brand: SidebarBrand }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
   useEffect(() => setOpen(false), [pathname]);
@@ -90,7 +95,7 @@ export function MobileNav({ groups }: { groups: NavGroup[] }) {
           <div className="absolute inset-0 bg-slate-900/50" onClick={() => setOpen(false)} />
           <aside className="absolute inset-y-0 left-0 flex w-72 max-w-[85%] flex-col bg-navy-900 text-navy-100 shadow-xl">
             <button type="button" onClick={() => setOpen(false)} className="absolute right-3 top-4 rounded p-1 text-navy-200 hover:bg-white/10" aria-label="Close menu"><X className="size-5" /></button>
-            <NavContent groups={groups} onNavigate={() => setOpen(false)} />
+            <NavContent groups={groups} brand={brand} onNavigate={() => setOpen(false)} />
           </aside>
         </div>,
         document.body,

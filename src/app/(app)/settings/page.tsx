@@ -7,6 +7,8 @@ import { StatusBadge } from "@/components/ui/badge";
 import { EmptyRow, TBody, TD, TH, THead, TR, Table } from "@/components/ui/table";
 import { BankForm, BankToggle, CompanyForm, EinvoicingForm, RateForm, RuleForm } from "./settings-forms";
 import { formatDate, humanize } from "@/lib/utils";
+import { getBranding } from "@/lib/branding";
+import { BrandingForm } from "@/components/settings/branding-form";
 
 export const metadata: Metadata = { title: "System settings" };
 const RULE_MODULE: Record<string, string> = { quotation: "sales", sales_order: "sales", purchase_order: "procurement", supplier_bill: "finance", expense: "finance", stock_adjustment: "inventory" };
@@ -24,6 +26,7 @@ export default async function SettingsPage() {
     supabase.from("system_modules").select("code, name, description, is_core, is_enabled, requires, changed_at").order("sort_order"),
   ]);
   const manage = can(user, "settings.manage");
+  const { data: canBrand } = await supabase.rpc("can_edit_branding");
   const base = s?.base_currency ?? "AED";
   const currencies = (cur ?? []).map((c) => c.code);
   const configured = !!process.env.EINVOICE_ASP_URL && !!process.env.EINVOICE_ASP_API_KEY;
@@ -32,6 +35,10 @@ export default async function SettingsPage() {
       <PageHeader title="System settings" description="Company details printed on documents, licensed modules, exchange rates, approval limits and bank accounts." />
       <div className="space-y-6">
         <Card><CardHeader><CardTitle>Company</CardTitle></CardHeader><CardContent><CompanyForm s={s ?? {}} disabled={!manage} /></CardContent></Card>
+        {canBrand === true && (
+          <Card><CardHeader><CardTitle>Login screen and logos</CardTitle><span className="text-xs text-slate-500">Super Administrator only</span></CardHeader>
+            <CardContent><BrandingForm initial={await getBranding()} vendor={user.isPlatformAdmin} /></CardContent></Card>
+        )}
         {user.modules.has("einvoicing") && (
           <Card><CardHeader><CardTitle>UAE e-invoicing</CardTitle></CardHeader><CardContent><EinvoicingForm s={s ?? {}} disabled={!manage} configured={configured} /></CardContent></Card>
         )}

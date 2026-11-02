@@ -1,11 +1,15 @@
 import type { Metadata } from "next";
 import "@fontsource-variable/inter";
 import "./globals.css";
+import { getBranding } from "@/lib/branding";
 
-export const metadata: Metadata = {
-  title: { default: "SMP Trading Management System", template: "%s · SMP TMS" },
-  robots: { index: false, follow: false },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const b = await getBranding();
+  return {
+    title: { default: `${b.companyName} · ${b.productName}`, template: `%s · ${b.companyName}` },
+    robots: { index: false, follow: false },
+  };
+}
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

@@ -194,6 +194,17 @@ What the vendor account can and cannot do:
 * Vendor access can only be granted or removed in the backend:
   `select public.revoke_platform_admin('support@your-company.com');`
 
+### Branding: product name, logos and login screen
+
+| Setting | Who can change it | Where |
+| --- | --- | --- |
+| Product name, product logo ("Powered by" at the foot of the login screen) | Vendor only | Vendor console → *Product name, logos and login screen* |
+| Company name and logo, tagline, notice, colours (left panel, text, sign-in side, buttons), background images for either side | Vendor or the client's Super Administrator | Vendor console, or **System Settings → Login screen and logos** |
+
+The company logo also appears in the menu and on printed quotations, purchase orders, delivery notes and invoices. Images
+(PNG/JPG/WebP, 5 MB max) are stored in the public `branding` storage bucket, because the login screen shows them before
+anyone signs in. Do not upload anything confidential there.
+
 ### Switching modules from SQL
 
 | Code | Module | Needs |

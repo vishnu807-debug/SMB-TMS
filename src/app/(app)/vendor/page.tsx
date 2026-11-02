@@ -8,6 +8,8 @@ import { Alert } from "@/components/ui/alert";
 import { EmptyRow, TBody, TD, TH, THead, TR, Table } from "@/components/ui/table";
 import { formatDateTime } from "@/lib/utils";
 import { ModuleForm, type ModuleRow } from "./module-form";
+import { getBranding } from "@/lib/branding";
+import { BrandingForm } from "@/components/settings/branding-form";
 
 export const metadata: Metadata = { title: "Vendor console" };
 
@@ -47,6 +49,11 @@ export default async function VendorConsolePage() {
             </Alert>
             <ModuleForm modules={rows} />
           </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle>Product name, logos and login screen</CardTitle><span className="text-xs text-slate-500">The client&apos;s Super Administrator can change everything here except the product name and product logo</span></CardHeader>
+          <CardContent><BrandingForm initial={await getBranding()} vendor /></CardContent>
         </Card>
 
         <Card>
