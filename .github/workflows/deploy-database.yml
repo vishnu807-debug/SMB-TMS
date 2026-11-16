@@ -82,6 +82,22 @@ jobs:
         with:
           version: latest
 
+      - name: Check access to the project
+        env:
+          OWN_TOKEN: ${{ secrets[format('SUPABASE_ACCESS_TOKEN_{0}', matrix.client)] != '' }}
+        run: |
+          if [ "$OWN_TOKEN" = "true" ]; then echo "Token: SUPABASE_ACCESS_TOKEN_$CLIENT"; else echo "Token: SUPABASE_ACCESS_TOKEN (shared)"; fi
+          if ! echo "$SUPABASE_PROJECT_REF" | grep -qE '^[a-z]{20}$'; then
+            echo "::error::The project ref for $CLIENT is not 20 lower-case letters. Copy it again from the Supabase address bar (…/project/<ref>)."; exit 1
+          fi
+          refs=$(supabase projects list -o json 2>/dev/null | jq -r '.[] | (.id // .ref)' || true)
+          echo "Projects this token can see: $(echo "$refs" | grep -c . )"
+          if ! echo "$refs" | grep -qx "$SUPABASE_PROJECT_REF"; then
+            echo "::error::The token cannot see the $CLIENT project. Create the access token while signed in to the Supabase login that owns this project and save it as SUPABASE_ACCESS_TOKEN_$CLIENT (or move the project into the same organisation as your other projects)."
+            exit 1
+          fi
+          echo "The token can see the project."
+
       - name: Link project
         run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
 
