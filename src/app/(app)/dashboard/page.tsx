@@ -54,13 +54,16 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     .gte("created_at", since).order("created_at", { ascending: false }).limit(10);
   if (rep) recentActs = recentActs.eq("owner_id", rep);
 
-  const [dash, follow, orders, quotes, acts, newQuotes, newOrders, reps] = await Promise.all([
+  const [dash, follow, orders, quotes, acts, newQuotes, newOrders, reps, recv] = await Promise.all([
     supabase.rpc("sales_dashboard", { p_from: from, p_to: to, p_rep: rep }),
     followQ, ordersQ, quotesQ, recentActs,
     supabase.from("quotations").select("id, doc_no, created_at, total, currency_code, customer:customers(id, name)").gte("created_at", since).order("created_at", { ascending: false }).limit(10),
     supabase.from("sales_orders").select("id, doc_no, created_at, total, currency_code, customer:customers(id, name)").gte("created_at", since).order("created_at", { ascending: false }).limit(10),
     seeAll ? supabase.from("profiles").select("id, full_name").eq("is_active", true).order("full_name") : Promise.resolve({ data: [] }),
+    supabase.rpc("sales_receivables", { p_rep: rep }),
   ]);
+  // Pending customer payments (null when the Finance module is off).
+  const r: any = recv.error ? null : recv.data;
   if (dash.error) return <Alert tone="error">The dashboard could not be loaded: {dash.error.message}</Alert>;
   const d: any = dash.data;
   const k = d.kpis;
@@ -108,6 +111,42 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       </div>
       {k.pending_approvals > 0 && (
         <Alert tone="warning" className="mb-6"><Link href="/approvals" className="font-medium underline">{k.pending_approvals} item{k.pending_approvals === 1 ? "" : "s"} waiting for your approval</Link></Alert>
+      )}
+
+      {r && (
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Pending payments from customers</CardTitle>
+            <span className="text-xs text-slate-500">Unpaid posted invoices, today · {d.scope === "all" && !rep ? "all customers" : rep ? "customers of the selected rep" : "your customers"}</span>
+          </CardHeader>
+          <CardContent>
+            {Number(r.outstanding) === 0 ? <p className="text-sm text-slate-500">No payments pending — every posted invoice is paid.</p> : (
+              <div className="grid gap-6 lg:grid-cols-3">
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Outstanding</p>
+                    <p className="text-2xl font-semibold tabular-nums text-slate-900">{formatMoney(r.outstanding)}</p>
+                    <p className="text-sm text-slate-600">from <strong>{r.customers}</strong> client{r.customers === 1 ? "" : "s"} · {r.invoices} invoice{r.invoices === 1 ? "" : "s"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Overdue</p>
+                    <p className={cn("text-xl font-semibold tabular-nums", Number(r.overdue) > 0 ? "text-red-700" : "text-emerald-700")}>{formatMoney(r.overdue)}</p>
+                    <p className="text-sm text-slate-600">from <strong>{r.overdue_customers}</strong> client{r.overdue_customers === 1 ? "" : "s"}</p>
+                  </div>
+                </div>
+                <div>
+                  <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">By age (days past due)</p>
+                  <BarList rows={["current", "1-30", "31-60", "61-90", "90+"].map((b) => ({ label: b === "current" ? "Not yet due" : `${b} days`, value: Number(r.aging?.[b] ?? 0) }))} />
+                </div>
+                <div>
+                  <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">Clients owing the most</p>
+                  <BarList rows={(r.top ?? []).map((c: any) => ({ label: c.name, value: Number(c.balance),
+                    note: Number(c.overdue) > 0 ? `${formatMoney(c.overdue)} overdue` : `${c.invoices} inv.`, href: `/customers/${c.customer_id}` }))} />
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       )}
 
       <div className="mb-6 grid gap-6 xl:grid-cols-3">

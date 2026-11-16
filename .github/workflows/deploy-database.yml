@@ -1,14 +1,20 @@
 name: Deploy database
 
-# Applies new files in supabase/migrations to the live Supabase project.
+# Applies new files in supabase/migrations to every client's Supabase project.
 # Runs automatically after the CI workflow passes on main (so a migration that
-# fails its tests never reaches the live database), and can be started by hand
-# from GitHub → Actions → Deploy database → Run workflow.
+# fails its tests never reaches a live database), and can be started by hand
+# from GitHub → Actions → Deploy database → Run workflow (optionally for one client).
 #
-# Needs three repository secrets (Settings → Secrets and variables → Actions):
-#   SUPABASE_ACCESS_TOKEN  – supabase.com → Account → Access Tokens
-#   SUPABASE_PROJECT_REF   – the project ref, e.g. abcdefghijklmnopqrst
-#   SUPABASE_DB_PASSWORD   – the database password of the project
+# Clients: repository variable CLIENTS (Settings → Secrets and variables → Actions →
+# Variables), a comma-separated list such as  MAIN,OILMARK,ALFAJR .
+# Without it, only MAIN is deployed.
+#
+# Secrets (Settings → Secrets and variables → Actions → Secrets):
+#   SUPABASE_ACCESS_TOKEN               – supabase.com → Account → Access Tokens (shared by all clients
+#                                          in your Supabase account; SUPABASE_ACCESS_TOKEN_<CLIENT> overrides it)
+#   MAIN:     SUPABASE_PROJECT_REF, SUPABASE_DB_PASSWORD   (the first installation)
+#   <CLIENT>: SUPABASE_PROJECT_REF_<CLIENT>, SUPABASE_DB_PASSWORD_<CLIENT>
+#             e.g. SUPABASE_PROJECT_REF_OILMARK, SUPABASE_DB_PASSWORD_OILMARK
 
 on:
   workflow_run:
@@ -16,20 +22,47 @@ on:
     types: [completed]
     branches: [main]
   workflow_dispatch:
-
-concurrency:
-  group: deploy-database
-  cancel-in-progress: false
+    inputs:
+      client:
+        description: "Only this client (e.g. OILMARK). Leave empty for all clients."
+        required: false
+        default: ""
 
 jobs:
-  migrate:
-    name: Apply migrations to Supabase
+  clients:
+    name: Clients to update
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
+    outputs:
+      list: ${{ steps.list.outputs.list }}
+    steps:
+      - id: list
+        env:
+          CLIENTS: ${{ vars.CLIENTS }}
+          ONLY: ${{ github.event.inputs.client }}
+        run: |
+          raw="${ONLY:-${CLIENTS:-MAIN}}"
+          list=$(echo "$raw" | tr 'a-z' 'A-Z' | tr ',; ' '\n\n\n' | grep -E '^[A-Z0-9_]+$' | sort -u | jq -R . | jq -cs .)
+          if [ "$list" = "[]" ]; then echo "::error::No valid client names in '$raw' (use letters, digits and _)."; exit 1; fi
+          echo "Clients: $list"
+          echo "list=$list" >> "$GITHUB_OUTPUT"
+
+  migrate:
+    name: ${{ matrix.client }}
+    needs: clients
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false            # one client's problem never blocks the others
+      matrix:
+        client: ${{ fromJSON(needs.clients.outputs.list) }}
+    concurrency:
+      group: deploy-database-${{ matrix.client }}
+      cancel-in-progress: false
     env:
-      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      CLIENT: ${{ matrix.client }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets[format('SUPABASE_ACCESS_TOKEN_{0}', matrix.client)] || secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_REF: ${{ matrix.client == 'MAIN' && secrets.SUPABASE_PROJECT_REF || secrets[format('SUPABASE_PROJECT_REF_{0}', matrix.client)] }}
+      SUPABASE_DB_PASSWORD: ${{ matrix.client == 'MAIN' && secrets.SUPABASE_DB_PASSWORD || secrets[format('SUPABASE_DB_PASSWORD_{0}', matrix.client)] }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -39,9 +72,10 @@ jobs:
       - name: Check secrets
         run: |
           missing=0
-          for v in SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD SUPABASE_PROJECT_REF; do
-            if [ -z "${!v}" ]; then echo "::error::Repository secret $v is not set (Settings → Secrets and variables → Actions)."; missing=1; fi
-          done
+          suffix=$([ "$CLIENT" = "MAIN" ] && echo "" || echo "_$CLIENT")
+          [ -n "$SUPABASE_ACCESS_TOKEN" ] || { echo "::error::Secret SUPABASE_ACCESS_TOKEN is not set."; missing=1; }
+          [ -n "$SUPABASE_PROJECT_REF" ] || { echo "::error::Secret SUPABASE_PROJECT_REF$suffix is not set."; missing=1; }
+          [ -n "$SUPABASE_DB_PASSWORD" ] || { echo "::error::Secret SUPABASE_DB_PASSWORD$suffix is not set."; missing=1; }
           exit $missing
 
       - uses: supabase/setup-cli@v1

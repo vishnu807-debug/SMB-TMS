@@ -142,8 +142,12 @@ Set it up once in **GitHub → repository → Settings → Secrets and variables
 | `SUPABASE_PROJECT_REF` | the part of your Supabase URL before `.supabase.co` |
 | `SUPABASE_DB_PASSWORD` | the project's database password (reset it under **Project Settings → Database** if forgotten) |
 
-To run it by hand, go to **GitHub → Actions → Deploy database → Run workflow**. A green tick means the database is up to
-date. If a run fails, open it to see the error.
+These three secrets belong to the first installation, called **MAIN**. Further clients are added as described in
+*Onboarding a new client* below.
+
+To run it by hand, go to **GitHub → Actions → Deploy database → Run workflow**. You can enter one client name, or leave
+it empty to update all clients. A green tick means the database is up to date. If a run fails, open it to see the error.
+Each client runs separately, so a problem with one client never blocks the others.
 
 ### Custom domain (optional)
 
@@ -160,6 +164,55 @@ registrar. Then repeat Step 5 with the new address.
   build fails if anyone imports the admin client into browser code.
 
 ---
+
+## Onboarding a new client
+
+Every client gets their **own Supabase project and their own Vercel site**, built from this same GitHub repository.
+Their data is fully separate from every other client's. The database starts empty: no customers, products or
+transactions, only the standard roles, VAT codes, units and number series. Every update you push to `main` reaches all
+clients automatically.
+
+Pick a short client name in capitals, e.g. `OILMARK` (letters, digits and `_`), and use it below.
+
+1. **Supabase: create the project.** In Supabase, create a **new project** for the client (region e.g. *Frankfurt*).
+   Note its **project ref** (the part of the URL before `.supabase.co`) and the **database password**.
+2. **GitHub: register the client** under **Settings → Secrets and variables → Actions**.
+   * **Secrets → New repository secret:** add `SUPABASE_PROJECT_REF_OILMARK` and `SUPABASE_DB_PASSWORD_OILMARK`.
+     The existing `SUPABASE_ACCESS_TOKEN` is reused when the project is in the same Supabase account.
+   * **Variables → New repository variable:** add `CLIENTS` = `MAIN,OILMARK`. Later clients are added with a comma,
+     e.g. `MAIN,OILMARK,ALFAJR`.
+3. **GitHub: create the database.** Open **Actions → Deploy database → Run workflow**, enter `OILMARK` and run it.
+   This takes about a minute and builds all tables in the new project.
+4. **Supabase: set up sign-in for the client's project.** Do Step 3 above (sign-in settings). Add custom SMTP so
+   invitation emails work, or use temporary passwords when adding users.
+5. **Supabase: create the two first users** under **Authentication → Users → Add user** (tick **Auto Confirm User**):
+   * the client's administrator, e.g. `it@oilmarkintl.com`;
+   * your vendor support account, e.g. `support@your-company.com`.
+6. **Supabase: run the setup** in the client's **SQL Editor** (change the values):
+   ```sql
+   select public.onboard_client('{
+     "legal_name":   "Oilmark International LLC",
+     "trade_name":   "Oilmark",
+     "admin_email":  "it@oilmarkintl.com",
+     "vendor_email": "support@your-company.com",
+     "product_name": "Nexora",
+     "modules":      ["sales", "procurement", "finance"]
+   }');
+   ```
+   This sets the company names (also in the standard terms), makes the administrator a Super Administrator, gives your
+   vendor account the Vendor console, and switches on exactly the modules listed.
+   Modules are `sales`, `inventory`, `procurement`, `logistics`, `finance` and `einvoicing`. Logistics needs sales, and
+   e-invoicing needs finance. It is safe to run again to correct something.
+7. **Vercel: create the site.** In Vercel, choose **Add New → Project** and import the same `SMB-TMS` repository again.
+   Give it a name such as `oilmark-tms`, and add the client's own environment variables as in Step 4 (URL, anon key and
+   service role key from the **client's** Supabase project, `NEXT_PUBLIC_SITE_URL`, and a new `CRON_SECRET`). Deploy, then
+   do Step 5 (Site URL and redirect URL) with the new address. A custom domain such as `erp.oilmarkintl.com` can be
+   added under the project's **Settings → Domains**.
+8. **Hand over.** The client's administrator signs in, completes **System Settings** (TRN, address, bank details,
+   logo, login screen) and adds their staff in **User management**.
+
+To stop serving a client, remove their name from `CLIENTS` and delete their Vercel project. Their Supabase project
+keeps the data until you delete it.
 
 ## Licensed modules (switching modules on and off)
 
